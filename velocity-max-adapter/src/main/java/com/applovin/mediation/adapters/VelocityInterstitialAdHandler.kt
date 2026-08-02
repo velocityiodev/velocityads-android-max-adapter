@@ -12,9 +12,18 @@ import io.velocityads.sdk.models.VelocityFullscreenAd
  *                    Used by the adapter to release its ad reference once the ad is fully gone.
  */
 internal class VelocityInterstitialAdHandler(
-    private val listener: MaxInterstitialAdapterListener,
+    private var listener: MaxInterstitialAdapterListener,
     private val onDismissed: () -> Unit = {},
 ) : VelocityInterstitialAdListener {
+
+    /**
+     * Wires the show-time listener so that display callbacks (shown, clicked, hidden) are
+     * delivered to the listener that MAX provides at show time, which may differ from the
+     * load-time listener.
+     */
+    fun attachShowListener(showListener: MaxInterstitialAdapterListener) {
+        listener = showListener
+    }
 
     override fun onAdLoaded(ad: VelocityFullscreenAd) {
         listener.onInterstitialAdLoaded()
@@ -26,11 +35,12 @@ internal class VelocityInterstitialAdHandler(
     }
 
     override fun onAdShown(ad: VelocityFullscreenAd) {
-        listener.onInterstitialAdDisplayed()
+        // Surface is visible — impression not yet counted. MAX display signal fires
+        // in onAdImpression once the Velocity SDK has verified the impression.
     }
 
     override fun onAdImpression(ad: VelocityFullscreenAd) {
-        // MAX records impression via onInterstitialAdDisplayed; no separate call needed.
+        listener.onInterstitialAdDisplayed()
     }
 
     override fun onAdFailedToShow(ad: VelocityFullscreenAd, error: VelocityAdsError) {

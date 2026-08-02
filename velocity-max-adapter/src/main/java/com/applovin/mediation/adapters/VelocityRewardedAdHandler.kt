@@ -13,9 +13,18 @@ import io.velocityads.sdk.models.VelocityFullscreenAd
  *                    Used by the adapter to release its ad reference once the ad is fully gone.
  */
 internal class VelocityRewardedAdHandler(
-    private val listener: MaxRewardedAdapterListener,
+    private var listener: MaxRewardedAdapterListener,
     private val onDismissed: () -> Unit = {},
 ) : VelocityRewardedAdListener {
+
+    /**
+     * Wires the show-time listener so that display callbacks (shown, rewarded, hidden) are
+     * delivered to the listener that MAX provides at show time, which may differ from the
+     * load-time listener.
+     */
+    fun attachShowListener(showListener: MaxRewardedAdapterListener) {
+        listener = showListener
+    }
 
     override fun onAdLoaded(ad: VelocityFullscreenAd) {
         listener.onRewardedAdLoaded()
@@ -27,11 +36,12 @@ internal class VelocityRewardedAdHandler(
     }
 
     override fun onAdShown(ad: VelocityFullscreenAd) {
-        listener.onRewardedAdDisplayed()
+        // Surface is visible — impression not yet counted. MAX display signal fires
+        // in onAdImpression once the Velocity SDK has verified the impression.
     }
 
     override fun onAdImpression(ad: VelocityFullscreenAd) {
-        // MAX records impression via onRewardedAdDisplayed; no separate call needed.
+        listener.onRewardedAdDisplayed()
     }
 
     override fun onAdFailedToShow(ad: VelocityFullscreenAd, error: VelocityAdsError) {
@@ -48,7 +58,7 @@ internal class VelocityRewardedAdHandler(
      * MAX defaults.
      */
     override fun onUserRewarded(ad: VelocityFullscreenAd) {
-        listener.onUserRewarded(MaxReward.create(MaxReward.DEFAULT_AMOUNT, ""))
+        listener.onUserRewarded(MaxReward.create(MaxReward.DEFAULT_AMOUNT, "coins"))
     }
 
     override fun onAdDismissed(ad: VelocityFullscreenAd) {
