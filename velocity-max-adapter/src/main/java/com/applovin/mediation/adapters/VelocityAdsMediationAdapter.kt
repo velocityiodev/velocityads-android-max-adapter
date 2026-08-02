@@ -30,18 +30,21 @@ import io.velocityads.sdk.models.VelocityRewardedAdRequest
  *
  * Custom network class name: `com.applovin.mediation.adapters.VelocityAdsMediationAdapter`
  */
-class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
+class VelocityAdsMediationAdapter(
+    sdk: AppLovinSdk,
+) : MediationAdapterBase(sdk),
     MaxInterstitialAdapter,
     MaxRewardedAdapter,
     MaxNativeAdAdapter {
-
     companion object {
         private const val TAG = "VelocityAdsAdapter"
     }
 
     // ---- ad object holders ----
     @Volatile private var interstitialAd: VelocityInterstitialAd? = null
+
     @Volatile private var rewardedAd: VelocityRewardedAd? = null
+
     @Volatile private var nativeAd: VelocityNativeAd? = null
 
     // ---- handler holders (needed to wire the show-time listener) ----
@@ -55,7 +58,7 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun initialize(
         parameters: MaxAdapterInitializationParameters,
         activity: Activity?,
-        onCompletionListener: MaxAdapter.OnCompletionListener
+        onCompletionListener: MaxAdapter.OnCompletionListener,
     ) {
         if (VelocityAds.isInitialized()) {
             onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
@@ -66,7 +69,7 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
         if (appKey.isNullOrBlank()) {
             onCompletionListener.onCompletion(
                 MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-                "Velocity Ads: missing app_key in server parameters"
+                "Velocity Ads: missing app_key in server parameters",
             )
             return
         }
@@ -78,18 +81,22 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
 
         val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
 
-        VelocityAds.initSDK(context, initRequest, object : VelocityAdsInitListener {
-            override fun onInitSuccess() {
-                onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
-            }
+        VelocityAds.initSDK(
+            context,
+            initRequest,
+            object : VelocityAdsInitListener {
+                override fun onInitSuccess() {
+                    onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+                }
 
-            override fun onInitFailure(error: VelocityAdsError) {
-                onCompletionListener.onCompletion(
-                    MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-                    "Velocity Ads init failed [${error.code}]: ${error.message}"
-                )
-            }
-        })
+                override fun onInitFailure(error: VelocityAdsError) {
+                    onCompletionListener.onCompletion(
+                        MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
+                        "Velocity Ads init failed [${error.code}]: ${error.message}",
+                    )
+                }
+            },
+        )
     }
 
     override fun getSdkVersion(): String = VelocityAds.getSdkVersion()
@@ -116,7 +123,7 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun loadInterstitialAd(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
-        listener: MaxInterstitialAdapterListener
+        listener: MaxInterstitialAdapterListener,
     ) {
         val adUnitId = parameters.getThirdPartyAdPlacementId()
         if (adUnitId.isNullOrBlank()) {
@@ -133,10 +140,11 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
         val adRequest = VelocityInterstitialAdRequest.Builder(adUnitId).build()
         val ad = VelocityInterstitialAd(adRequest)
         interstitialAd = ad
-        val handler = VelocityInterstitialAdHandler(
-            listener,
-            onDismissed = { if (interstitialAd === ad) interstitialAd = null },
-        )
+        val handler =
+            VelocityInterstitialAdHandler(
+                listener,
+                onDismissed = { if (interstitialAd === ad) interstitialAd = null },
+            )
         interstitialAdHandler = handler
         ad.load(handler)
     }
@@ -144,7 +152,7 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun showInterstitialAd(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
-        listener: MaxInterstitialAdapterListener
+        listener: MaxInterstitialAdapterListener,
     ) {
         val ad = interstitialAd
         if (ad == null || !ad.isReady) {
@@ -167,7 +175,7 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun loadRewardedAd(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
-        listener: MaxRewardedAdapterListener
+        listener: MaxRewardedAdapterListener,
     ) {
         val adUnitId = parameters.getThirdPartyAdPlacementId()
         if (adUnitId.isNullOrBlank()) {
@@ -184,10 +192,11 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
         val adRequest = VelocityRewardedAdRequest.Builder(adUnitId).build()
         val ad = VelocityRewardedAd(adRequest)
         rewardedAd = ad
-        val handler = VelocityRewardedAdHandler(
-            listener,
-            onDismissed = { if (rewardedAd === ad) rewardedAd = null },
-        )
+        val handler =
+            VelocityRewardedAdHandler(
+                listener,
+                onDismissed = { if (rewardedAd === ad) rewardedAd = null },
+            )
         rewardedAdHandler = handler
         ad.load(handler)
     }
@@ -195,7 +204,7 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun showRewardedAd(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
-        listener: MaxRewardedAdapterListener
+        listener: MaxRewardedAdapterListener,
     ) {
         val ad = rewardedAd
         if (ad == null || !ad.isReady) {
@@ -218,7 +227,7 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun loadNativeAd(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
-        listener: MaxNativeAdAdapterListener
+        listener: MaxNativeAdAdapterListener,
     ) {
         val adUnitId = parameters.getThirdPartyAdPlacementId()
         if (adUnitId.isNullOrBlank()) {

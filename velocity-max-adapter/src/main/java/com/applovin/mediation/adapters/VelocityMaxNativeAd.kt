@@ -10,9 +10,8 @@ import io.velocityads.sdk.models.VelocityNativeAd
  */
 internal class VelocityMaxNativeAd(
     builder: Builder,
-    private val velocityNativeAd: VelocityNativeAd
+    private val velocityNativeAd: VelocityNativeAd,
 ) : MaxNativeAd(builder) {
-
     override fun prepareViewForInteraction(maxNativeAdView: MaxNativeAdView) {
         val clickableViews = mutableListOf<View>()
 

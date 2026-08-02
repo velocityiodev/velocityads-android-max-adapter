@@ -13,31 +13,37 @@ import io.velocityads.sdk.models.VelocityNativeAd
  * and assembles the [VelocityMaxNativeAd] delivered to MAX.
  */
 internal class VelocityNativeAdHandler(
-    private val listener: MaxNativeAdAdapterListener
+    private val listener: MaxNativeAdAdapterListener,
 ) : VelocityNativeAdListener {
-
     override fun onAdLoaded(nativeAd: VelocityNativeAd) {
         val data = nativeAd.data
 
-        val iconImage = data.advertiserIconUrl
-            .takeIf { it.isNotBlank() }
-            ?.let { MaxNativeAdImage(Uri.parse(it)) }
+        val iconImage =
+            data.advertiserIconUrl
+                .takeIf { it.isNotBlank() }
+                ?.let { MaxNativeAdImage(Uri.parse(it)) }
 
-        val maxNativeAd = VelocityMaxNativeAd(
-            builder = MaxNativeAd.Builder()
-                .setAdFormat(MaxAdFormat.NATIVE)
-                .setTitle(data.title)
-                .setBody(data.description)
-                .setCallToAction(data.callToAction)
-                .setAdvertiser(data.advertiserName)
-                .setIcon(iconImage),
-            velocityNativeAd = nativeAd
-        )
+        val maxNativeAd =
+            VelocityMaxNativeAd(
+                builder =
+                    MaxNativeAd
+                        .Builder()
+                        .setAdFormat(MaxAdFormat.NATIVE)
+                        .setTitle(data.title)
+                        .setBody(data.description)
+                        .setCallToAction(data.callToAction)
+                        .setAdvertiser(data.advertiserName)
+                        .setIcon(iconImage),
+                velocityNativeAd = nativeAd,
+            )
 
         listener.onNativeAdLoaded(maxNativeAd, null)
     }
 
-    override fun onAdFailedToLoad(nativeAd: VelocityNativeAd, error: io.velocityads.sdk.models.VelocityAdsError) {
+    override fun onAdFailedToLoad(
+        nativeAd: VelocityNativeAd,
+        error: io.velocityads.sdk.models.VelocityAdsError,
+    ) {
         val maxError = VelocityAdsErrorMapper.toMaxAdapterError(error)
         listener.onNativeAdLoadFailed(maxError)
     }

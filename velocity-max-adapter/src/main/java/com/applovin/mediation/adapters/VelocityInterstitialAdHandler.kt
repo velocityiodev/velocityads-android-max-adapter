@@ -15,7 +15,6 @@ internal class VelocityInterstitialAdHandler(
     private var listener: MaxInterstitialAdapterListener,
     private val onDismissed: () -> Unit = {},
 ) : VelocityInterstitialAdListener {
-
     /**
      * Wires the show-time listener so that display callbacks (shown, clicked, hidden) are
      * delivered to the listener that MAX provides at show time, which may differ from the
@@ -29,7 +28,10 @@ internal class VelocityInterstitialAdHandler(
         listener.onInterstitialAdLoaded()
     }
 
-    override fun onAdFailedToLoad(ad: VelocityFullscreenAd, error: VelocityAdsError) {
+    override fun onAdFailedToLoad(
+        ad: VelocityFullscreenAd,
+        error: VelocityAdsError,
+    ) {
         val maxError = VelocityAdsErrorMapper.toMaxAdapterError(error)
         listener.onInterstitialAdLoadFailed(maxError)
     }
@@ -43,7 +45,10 @@ internal class VelocityInterstitialAdHandler(
         listener.onInterstitialAdDisplayed()
     }
 
-    override fun onAdFailedToShow(ad: VelocityFullscreenAd, error: VelocityAdsError) {
+    override fun onAdFailedToShow(
+        ad: VelocityFullscreenAd,
+        error: VelocityAdsError,
+    ) {
         val maxError = VelocityAdsErrorMapper.toMaxAdapterError(error)
         listener.onInterstitialAdDisplayFailed(maxError)
     }

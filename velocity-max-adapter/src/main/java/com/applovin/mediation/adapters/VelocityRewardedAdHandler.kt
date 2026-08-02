@@ -16,7 +16,6 @@ internal class VelocityRewardedAdHandler(
     private var listener: MaxRewardedAdapterListener,
     private val onDismissed: () -> Unit = {},
 ) : VelocityRewardedAdListener {
-
     /**
      * Wires the show-time listener so that display callbacks (shown, rewarded, hidden) are
      * delivered to the listener that MAX provides at show time, which may differ from the
@@ -30,7 +29,10 @@ internal class VelocityRewardedAdHandler(
         listener.onRewardedAdLoaded()
     }
 
-    override fun onAdFailedToLoad(ad: VelocityFullscreenAd, error: VelocityAdsError) {
+    override fun onAdFailedToLoad(
+        ad: VelocityFullscreenAd,
+        error: VelocityAdsError,
+    ) {
         val maxError = VelocityAdsErrorMapper.toMaxAdapterError(error)
         listener.onRewardedAdLoadFailed(maxError)
     }
@@ -44,7 +46,10 @@ internal class VelocityRewardedAdHandler(
         listener.onRewardedAdDisplayed()
     }
 
-    override fun onAdFailedToShow(ad: VelocityFullscreenAd, error: VelocityAdsError) {
+    override fun onAdFailedToShow(
+        ad: VelocityFullscreenAd,
+        error: VelocityAdsError,
+    ) {
         val maxError = VelocityAdsErrorMapper.toMaxAdapterError(error)
         listener.onRewardedAdDisplayFailed(maxError)
     }
@@ -58,10 +63,13 @@ internal class VelocityRewardedAdHandler(
      * MAX defaults.
      */
     override fun onUserRewarded(ad: VelocityFullscreenAd) {
-        listener.onUserRewarded(object : MaxReward {
-            override fun getLabel(): String = MaxReward.DEFAULT_LABEL
-            override fun getAmount(): Int = MaxReward.DEFAULT_AMOUNT
-        })
+        listener.onUserRewarded(
+            object : MaxReward {
+                override fun getLabel(): String = MaxReward.DEFAULT_LABEL
+
+                override fun getAmount(): Int = MaxReward.DEFAULT_AMOUNT
+            },
+        )
     }
 
     override fun onAdDismissed(ad: VelocityFullscreenAd) {
