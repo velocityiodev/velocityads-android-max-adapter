@@ -48,8 +48,9 @@ class VelocityAdsMediationAdapter(
     @Volatile private var nativeAd: VelocityNativeAd? = null
 
     // ---- handler holders (needed to wire the show-time listener) ----
-    private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
-    private var rewardedAdHandler: VelocityRewardedAdHandler? = null
+    @Volatile private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
+    @Volatile private var rewardedAdHandler: VelocityRewardedAdHandler? = null
+    @Volatile private var nativeAdHandler: VelocityNativeAdHandler? = null
 
     // =========================================================================
     // MediationAdapterBase
@@ -114,6 +115,7 @@ class VelocityAdsMediationAdapter(
 
         nativeAd?.destroy()
         nativeAd = null
+        nativeAdHandler = null
     }
 
     // =========================================================================
@@ -243,6 +245,7 @@ class VelocityAdsMediationAdapter(
 
         val adRequest = VelocityNativeAdRequest.Builder(adUnitId).build()
         val handler = VelocityNativeAdHandler(listener)
+        nativeAdHandler = handler
         val ad = VelocityNativeAd(adRequest)
         nativeAd = ad
         ad.load(handler)

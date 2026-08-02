@@ -13,7 +13,7 @@ import io.velocityads.sdk.models.VelocityFullscreenAd
  *                    Used by the adapter to release its ad reference once the ad is fully gone.
  */
 internal class VelocityRewardedAdHandler(
-    private var listener: MaxRewardedAdapterListener,
+    @Volatile private var listener: MaxRewardedAdapterListener,
     private val onDismissed: () -> Unit = {},
 ) : VelocityRewardedAdListener {
     /**

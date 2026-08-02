@@ -12,7 +12,7 @@ import io.velocityads.sdk.models.VelocityFullscreenAd
  *                    Used by the adapter to release its ad reference once the ad is fully gone.
  */
 internal class VelocityInterstitialAdHandler(
-    private var listener: MaxInterstitialAdapterListener,
+    @Volatile private var listener: MaxInterstitialAdapterListener,
     private val onDismissed: () -> Unit = {},
 ) : VelocityInterstitialAdListener {
     /**

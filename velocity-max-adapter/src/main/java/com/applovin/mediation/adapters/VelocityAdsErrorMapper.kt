@@ -33,6 +33,7 @@ internal object VelocityAdsErrorMapper {
 
             VelocityAdsErrorCode.LOAD_ALREADY_IN_PROGRESS,
             VelocityAdsErrorCode.AD_ALREADY_LOADED,
+            VelocityAdsErrorCode.AD_SPENT,
             -> MaxAdapterError.INVALID_LOAD_STATE
 
             VelocityAdsErrorCode.LOAD_SERVICE_UNAVAILABLE -> MaxAdapterError.NOT_INITIALIZED
