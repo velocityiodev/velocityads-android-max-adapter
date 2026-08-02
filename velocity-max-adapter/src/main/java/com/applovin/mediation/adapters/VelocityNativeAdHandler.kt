@@ -4,7 +4,7 @@ import android.net.Uri
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
 import com.applovin.mediation.nativeAds.MaxNativeAd
-import com.applovin.mediation.nativeAds.MaxNativeAdImage
+import com.applovin.mediation.nativeAds.MaxNativeAd.MaxNativeAdImage
 import io.velocityads.sdk.listeners.VelocityNativeAdListener
 import io.velocityads.sdk.models.VelocityNativeAd
 
@@ -30,7 +30,7 @@ internal class VelocityNativeAdHandler(
                 .setBody(data.description)
                 .setCallToAction(data.callToAction)
                 .setAdvertiser(data.advertiserName)
-                .setIconImage(iconImage),
+                .setIcon(iconImage),
             velocityNativeAd = nativeAd
         )
 
@@ -43,7 +43,7 @@ internal class VelocityNativeAdHandler(
     }
 
     override fun onAdImpression(nativeAd: VelocityNativeAd) {
-        listener.onNativeAdDisplayed(null, null)
+        listener.onNativeAdDisplayed(null)
     }
 
     override fun onAdClicked(nativeAd: VelocityNativeAd) {

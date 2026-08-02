@@ -1,17 +1,18 @@
 package com.applovin.mediation.adapters
 
 import android.app.Activity
-import android.content.Context
 import android.util.Log
-import com.applovin.mediation.MaxAdapterError
-import com.applovin.mediation.adapter.MaxAdapterInitializationParameters
-import com.applovin.mediation.adapter.MaxAdapterResponseParameters
+import com.applovin.mediation.adapter.MaxAdapter
+import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.MaxInterstitialAdapter
 import com.applovin.mediation.adapter.MaxNativeAdAdapter
 import com.applovin.mediation.adapter.MaxRewardedAdapter
 import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
+import com.applovin.mediation.adapter.parameters.MaxAdapterInitializationParameters
+import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
+import com.applovin.mediation.adapters.velocity.BuildConfig
 import com.applovin.sdk.AppLovinSdk
 import io.velocityads.sdk.VelocityAds
 import io.velocityads.sdk.listeners.VelocityAdsInitListener
@@ -39,9 +40,13 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     }
 
     // ---- ad object holders ----
-    private var interstitialAd: VelocityInterstitialAd? = null
-    private var rewardedAd: VelocityRewardedAd? = null
-    private var nativeAd: VelocityNativeAd? = null
+    @Volatile private var interstitialAd: VelocityInterstitialAd? = null
+    @Volatile private var rewardedAd: VelocityRewardedAd? = null
+    @Volatile private var nativeAd: VelocityNativeAd? = null
+
+    // ---- handler holders (needed to wire the show-time listener) ----
+    private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
+    private var rewardedAdHandler: VelocityRewardedAdHandler? = null
 
     // =========================================================================
     // MediationAdapterBase
@@ -50,37 +55,37 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun initialize(
         parameters: MaxAdapterInitializationParameters,
         activity: Activity?,
-        onCompletionListener: OnCompletionListener
+        onCompletionListener: MaxAdapter.OnCompletionListener
     ) {
         if (VelocityAds.isInitialized()) {
-            onCompletionListener.onCompletion(InitializationStatus.INITIALIZED_SUCCESS, null)
+            onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
             return
         }
 
-        val appKey = parameters.serverParameters.getString("app_key")
+        val appKey = parameters.getServerParameters().getString("app_key")
         if (appKey.isNullOrBlank()) {
             onCompletionListener.onCompletion(
-                InitializationStatus.INITIALIZED_FAILURE,
+                MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
                 "Velocity Ads: missing app_key in server parameters"
             )
             return
         }
 
-        val context: Context = activity ?: appLovinSdk.applicationContext
+        val context = activity ?: getApplicationContext()
 
-        parameters.hasUserConsent?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell?.let { VelocityAds.setDoNotSell(it) }
+        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
+        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
 
         val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
 
         VelocityAds.initSDK(context, initRequest, object : VelocityAdsInitListener {
             override fun onInitSuccess() {
-                onCompletionListener.onCompletion(InitializationStatus.INITIALIZED_SUCCESS, null)
+                onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
             }
 
             override fun onInitFailure(error: VelocityAdsError) {
                 onCompletionListener.onCompletion(
-                    InitializationStatus.INITIALIZED_FAILURE,
+                    MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
                     "Velocity Ads init failed [${error.code}]: ${error.message}"
                 )
             }
@@ -94,9 +99,11 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
     override fun onDestroy() {
         interstitialAd?.destroy()
         interstitialAd = null
+        interstitialAdHandler = null
 
         rewardedAd?.destroy()
         rewardedAd = null
+        rewardedAdHandler = null
 
         nativeAd?.destroy()
         nativeAd = null
@@ -111,19 +118,26 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
         activity: Activity?,
         listener: MaxInterstitialAdapterListener
     ) {
-        val adUnitId = parameters.thirdPartyAdPlacementId
+        val adUnitId = parameters.getThirdPartyAdPlacementId()
         if (adUnitId.isNullOrBlank()) {
             listener.onInterstitialAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
             return
         }
 
-        parameters.hasUserConsent?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell?.let { VelocityAds.setDoNotSell(it) }
+        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
+        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+
+        interstitialAd?.destroy()
+        interstitialAd = null
 
         val adRequest = VelocityInterstitialAdRequest.Builder(adUnitId).build()
-        val handler = VelocityInterstitialAdHandler(listener, onDismissed = { interstitialAd = null })
         val ad = VelocityInterstitialAd(adRequest)
         interstitialAd = ad
+        val handler = VelocityInterstitialAdHandler(
+            listener,
+            onDismissed = { if (interstitialAd === ad) interstitialAd = null },
+        )
+        interstitialAdHandler = handler
         ad.load(handler)
     }
 
@@ -137,8 +151,13 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
             listener.onInterstitialAdDisplayFailed(MaxAdapterError.AD_NOT_READY)
             return
         }
-
-        ad.show(resolveContext(activity))
+        if (activity == null) {
+            Log.e(TAG, "Cannot show interstitial: Activity is null")
+            listener.onInterstitialAdDisplayFailed(MaxAdapterError.MISSING_ACTIVITY)
+            return
+        }
+        interstitialAdHandler?.attachShowListener(listener)
+        ad.show(activity)
     }
 
     // =========================================================================
@@ -150,19 +169,26 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
         activity: Activity?,
         listener: MaxRewardedAdapterListener
     ) {
-        val adUnitId = parameters.thirdPartyAdPlacementId
+        val adUnitId = parameters.getThirdPartyAdPlacementId()
         if (adUnitId.isNullOrBlank()) {
             listener.onRewardedAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
             return
         }
 
-        parameters.hasUserConsent?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell?.let { VelocityAds.setDoNotSell(it) }
+        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
+        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+
+        rewardedAd?.destroy()
+        rewardedAd = null
 
         val adRequest = VelocityRewardedAdRequest.Builder(adUnitId).build()
-        val handler = VelocityRewardedAdHandler(listener, onDismissed = { rewardedAd = null })
         val ad = VelocityRewardedAd(adRequest)
         rewardedAd = ad
+        val handler = VelocityRewardedAdHandler(
+            listener,
+            onDismissed = { if (rewardedAd === ad) rewardedAd = null },
+        )
+        rewardedAdHandler = handler
         ad.load(handler)
     }
 
@@ -176,8 +202,13 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
             listener.onRewardedAdDisplayFailed(MaxAdapterError.AD_NOT_READY)
             return
         }
-
-        ad.show(resolveContext(activity))
+        if (activity == null) {
+            Log.e(TAG, "Cannot show rewarded ad: Activity is null")
+            listener.onRewardedAdDisplayFailed(MaxAdapterError.MISSING_ACTIVITY)
+            return
+        }
+        rewardedAdHandler?.attachShowListener(listener)
+        ad.show(activity)
     }
 
     // =========================================================================
@@ -189,37 +220,22 @@ class VelocityAdsMediationAdapter(sdk: AppLovinSdk) : MediationAdapterBase(sdk),
         activity: Activity?,
         listener: MaxNativeAdAdapterListener
     ) {
-        val adUnitId = parameters.thirdPartyAdPlacementId
+        val adUnitId = parameters.getThirdPartyAdPlacementId()
         if (adUnitId.isNullOrBlank()) {
             listener.onNativeAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
             return
         }
 
-        parameters.hasUserConsent?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell?.let { VelocityAds.setDoNotSell(it) }
+        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
+        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+
+        nativeAd?.destroy()
+        nativeAd = null
 
         val adRequest = VelocityNativeAdRequest.Builder(adUnitId).build()
         val handler = VelocityNativeAdHandler(listener)
         val ad = VelocityNativeAd(adRequest)
         nativeAd = ad
         ad.load(handler)
-    }
-
-    // =========================================================================
-    // Helpers
-    // =========================================================================
-
-    /**
-     * Returns an Activity context for showing fullscreen ads. Falls back to the application
-     * context with a warning — this is not recommended but prevents a crash if the activity
-     * reference is null at show time.
-     */
-    private fun resolveContext(activity: Activity?): Context {
-        if (activity == null) {
-            Log.w(TAG, "Activity is null; falling back to application context. " +
-                    "Fullscreen ads may not display correctly.")
-            return appLovinSdk.applicationContext
-        }
-        return activity
     }
 }

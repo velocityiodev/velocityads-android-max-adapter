@@ -1,6 +1,6 @@
 package com.applovin.mediation.adapters
 
-import com.applovin.mediation.MaxAdapterError
+import com.applovin.mediation.adapter.MaxAdapterError
 import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
 
@@ -31,7 +31,7 @@ internal object VelocityAdsErrorMapper {
         VelocityAdsErrorCode.LOAD_ALREADY_IN_PROGRESS,
         VelocityAdsErrorCode.AD_ALREADY_LOADED -> MaxAdapterError.INVALID_LOAD_STATE
 
-        VelocityAdsErrorCode.LOAD_SERVICE_UNAVAILABLE -> MaxAdapterError.SERVER_ERROR
+        VelocityAdsErrorCode.LOAD_SERVICE_UNAVAILABLE -> MaxAdapterError.NOT_INITIALIZED
 
         VelocityAdsErrorCode.NO_FILL,
         VelocityAdsErrorCode.WATERFALL_LOAD_FAILED -> MaxAdapterError.NO_FILL

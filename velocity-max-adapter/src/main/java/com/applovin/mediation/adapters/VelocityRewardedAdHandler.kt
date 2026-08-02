@@ -58,7 +58,10 @@ internal class VelocityRewardedAdHandler(
      * MAX defaults.
      */
     override fun onUserRewarded(ad: VelocityFullscreenAd) {
-        listener.onUserRewarded(MaxReward.create(MaxReward.DEFAULT_AMOUNT, "coins"))
+        listener.onUserRewarded(object : MaxReward {
+            override fun getLabel(): String = MaxReward.DEFAULT_LABEL
+            override fun getAmount(): Int = MaxReward.DEFAULT_AMOUNT
+        })
     }
 
     override fun onAdDismissed(ad: VelocityFullscreenAd) {
