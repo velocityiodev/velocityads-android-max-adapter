@@ -16,7 +16,15 @@ internal class VelocityNativeAdHandler(
     private val listener: MaxNativeAdAdapterListener,
 ) : VelocityNativeAdListener {
     override fun onAdLoaded(nativeAd: VelocityNativeAd) {
-        val data = nativeAd.data
+        // `data` delegates to an internal `lateinit var`; the SDK contract guarantees
+        // it is populated before `onAdLoaded` fires, but guard defensively to prevent
+        // a crash if an SDK bug violates that guarantee.
+        val data = try {
+            nativeAd.data
+        } catch (_: UninitializedPropertyAccessException) {
+            listener.onNativeAdLoadFailed(MaxAdapterError.INTERNAL_ERROR)
+            return
+        }
 
         val iconImage =
             data.advertiserIconUrl
