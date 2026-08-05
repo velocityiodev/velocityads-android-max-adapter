@@ -2,6 +2,7 @@ package com.applovin.mediation.adapters
 
 import android.net.Uri
 import com.applovin.mediation.MaxAdFormat
+import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
 import com.applovin.mediation.nativeAds.MaxNativeAd
 import com.applovin.mediation.nativeAds.MaxNativeAd.MaxNativeAdImage
