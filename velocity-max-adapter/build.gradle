@@ -46,7 +46,7 @@ android {
 }
 
 dependencies {
-    compileOnly 'com.applovin:applovin-sdk:12.+'
+    compileOnly 'com.applovin:applovin-sdk:13.+'
     implementation "io.velocity:ads-sdk:${velocitySdkVersion}"
 }
 
