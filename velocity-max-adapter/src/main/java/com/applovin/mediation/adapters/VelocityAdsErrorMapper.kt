@@ -38,9 +38,12 @@ internal object VelocityAdsErrorMapper {
 
             VelocityAdsErrorCode.LOAD_SERVICE_UNAVAILABLE -> MaxAdapterError.NOT_INITIALIZED
 
-            VelocityAdsErrorCode.NO_FILL,
-            VelocityAdsErrorCode.WATERFALL_LOAD_FAILED,
-            -> MaxAdapterError.NO_FILL
+            VelocityAdsErrorCode.NO_FILL -> MaxAdapterError.NO_FILL
+
+            // Velocity's internal waterfall exhausted all adapters or threw — not a
+            // demand signal. Map to INTERNAL_ERROR so MAX doesn't penalise eCPM ranking
+            // as if Velocity had no inventory. Matches the iOS adapter mapping.
+            VelocityAdsErrorCode.WATERFALL_LOAD_FAILED -> MaxAdapterError.INTERNAL_ERROR
 
             VelocityAdsErrorCode.AD_DESTROYED -> MaxAdapterError.INVALID_LOAD_STATE
 

@@ -32,6 +32,11 @@ internal class VelocityNativeAdHandler(
                 .takeIf { it.isNotBlank() }
                 ?.let { MaxNativeAdImage(Uri.parse(it)) }
 
+        // Prefer square crop; fall back to landscape hero. Mirrors iOS adapter behaviour.
+        val mainImage =
+            (data.squareImageUrl?.takeIf { it.isNotBlank() } ?: data.largeImageUrl?.takeIf { it.isNotBlank() })
+                ?.let { MaxNativeAdImage(Uri.parse(it)) }
+
         val maxNativeAd =
             VelocityMaxNativeAd(
                 builder =
@@ -42,7 +47,8 @@ internal class VelocityNativeAdHandler(
                         .setBody(data.description)
                         .setCallToAction(data.callToAction)
                         .setAdvertiser(data.advertiserName)
-                        .setIcon(iconImage),
+                        .setIcon(iconImage)
+                        .setMainImage(mainImage),
                 velocityNativeAd = nativeAd,
             )
 

@@ -20,7 +20,7 @@ This library is the official AppLovin MAX **custom-network adapter** for the Vel
 | Requirement | Minimum version |
 |---|---|
 | Android | API 24 (Android 7.0) |
-| AppLovin MAX SDK | 12.x |
+| AppLovin MAX SDK | 13.x |
 | Velocity Ads SDK | 0.10.0 |
 | Kotlin | 1.9+ |
 
@@ -35,7 +35,7 @@ Once published to Maven Central, add the adapter to your app's `build.gradle`:
 ```groovy
 dependencies {
     // AppLovin MAX SDK (already present in most apps)
-    implementation 'com.applovin:applovin-sdk:12.+'
+    implementation 'com.applovin:applovin-sdk:13.+'
 
     // Velocity Ads SDK
     implementation 'io.velocity:ads-sdk:0.10.0'

@@ -61,6 +61,11 @@ class VelocityAdsMediationAdapter(
         activity: Activity?,
         onCompletionListener: MaxAdapter.OnCompletionListener,
     ) {
+        // Forward privacy signals before the fast-path return so consent is always
+        // up-to-date even when the SDK was pre-initialised by the host app.
+        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
+        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+
         if (VelocityAds.isInitialized()) {
             onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
             return
@@ -76,9 +81,6 @@ class VelocityAdsMediationAdapter(
         }
 
         val context = activity ?: getApplicationContext()
-
-        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
 
         val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
 
