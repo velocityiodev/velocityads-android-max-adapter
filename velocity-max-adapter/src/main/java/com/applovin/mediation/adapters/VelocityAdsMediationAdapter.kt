@@ -93,6 +93,13 @@ class VelocityAdsMediationAdapter(
                 }
 
                 override fun onInitFailure(error: VelocityAdsError) {
+                    if (error.code == 2002) {
+                        // Another adapter instance already claimed the init slot. The SDK
+                        // is initializing and will succeed shortly — report success so MAX
+                        // does not mark this network as permanently failed.
+                        onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+                        return
+                    }
                     onCompletionListener.onCompletion(
                         MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
                         "Velocity Ads init failed [${error.code}]: ${error.message}",
@@ -168,7 +175,12 @@ class VelocityAdsMediationAdapter(
             listener.onInterstitialAdDisplayFailed(MaxAdapterError.MISSING_ACTIVITY)
             return
         }
-        interstitialAdHandler?.attachShowListener(listener)
+        val handler = interstitialAdHandler
+        if (handler == null) {
+            listener.onInterstitialAdDisplayFailed(MaxAdapterError.INVALID_LOAD_STATE)
+            return
+        }
+        handler.attachShowListener(listener)
         ad.show(activity)
     }
 
@@ -220,7 +232,12 @@ class VelocityAdsMediationAdapter(
             listener.onRewardedAdDisplayFailed(MaxAdapterError.MISSING_ACTIVITY)
             return
         }
-        rewardedAdHandler?.attachShowListener(listener)
+        val handler = rewardedAdHandler
+        if (handler == null) {
+            listener.onRewardedAdDisplayFailed(MaxAdapterError.INVALID_LOAD_STATE)
+            return
+        }
+        handler.attachShowListener(listener)
         ad.show(activity)
     }
 
