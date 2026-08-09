@@ -37,12 +37,11 @@ internal class VelocityInterstitialAdHandler(
     }
 
     override fun onAdShown(ad: VelocityFullscreenAd) {
-        // Surface is visible — impression not yet counted. MAX display signal fires
-        // in onAdImpression once the Velocity SDK has verified the impression.
+        listener.onInterstitialAdDisplayed()
     }
 
     override fun onAdImpression(ad: VelocityFullscreenAd) {
-        listener.onInterstitialAdDisplayed()
+        // Velocity impression confirmed — no additional MAX signal needed here.
     }
 
     override fun onAdFailedToShow(

@@ -38,12 +38,11 @@ internal class VelocityRewardedAdHandler(
     }
 
     override fun onAdShown(ad: VelocityFullscreenAd) {
-        // Surface is visible — impression not yet counted. MAX display signal fires
-        // in onAdImpression once the Velocity SDK has verified the impression.
+        listener.onRewardedAdDisplayed()
     }
 
     override fun onAdImpression(ad: VelocityFullscreenAd) {
-        listener.onRewardedAdDisplayed()
+        // Velocity impression confirmed — no additional MAX signal needed here.
     }
 
     override fun onAdFailedToShow(
