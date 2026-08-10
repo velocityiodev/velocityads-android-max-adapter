@@ -17,6 +17,7 @@ import com.applovin.sdk.AppLovinSdk
 import io.velocityads.sdk.VelocityAds
 import io.velocityads.sdk.listeners.VelocityAdsInitListener
 import io.velocityads.sdk.models.VelocityAdsError
+import io.velocityads.sdk.models.VelocityAdsErrorCode
 import io.velocityads.sdk.models.VelocityAdsInitRequest
 import io.velocityads.sdk.models.VelocityInterstitialAd
 import io.velocityads.sdk.models.VelocityInterstitialAdRequest
@@ -93,7 +94,7 @@ class VelocityAdsMediationAdapter(
                 }
 
                 override fun onInitFailure(error: VelocityAdsError) {
-                    if (error.code == 2002) {
+                    if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
                         // Another adapter instance already claimed the init slot. The SDK
                         // is initializing and will succeed shortly — report success so MAX
                         // does not mark this network as permanently failed.
