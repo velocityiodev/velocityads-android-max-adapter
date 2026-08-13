@@ -94,13 +94,6 @@ class VelocityAdsMediationAdapter(
                 }
 
                 override fun onInitFailure(error: VelocityAdsError) {
-                    if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
-                        // Another adapter instance already claimed the init slot. The SDK
-                        // is initializing and will succeed shortly — report success so MAX
-                        // does not mark this network as permanently failed.
-                        onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
-                        return
-                    }
                     onCompletionListener.onCompletion(
                         MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
                         "Velocity Ads init failed [${error.code}]: ${error.message}",

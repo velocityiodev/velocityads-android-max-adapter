@@ -1,6 +1,7 @@
 package com.applovin.mediation.adapters
 
 import android.net.Uri
+import android.util.Log
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
@@ -16,16 +17,19 @@ import io.velocityads.sdk.models.VelocityNativeAd
 internal class VelocityNativeAdHandler(
     private val listener: MaxNativeAdAdapterListener,
 ) : VelocityNativeAdListener {
+    companion object {
+        private const val TAG = "VelocityNativeAdHandler"
+    }
     override fun onAdLoaded(nativeAd: VelocityNativeAd) {
-        // `data` delegates to an internal `lateinit var`; the SDK contract guarantees
-        // it is populated before `onAdLoaded` fires, but guard defensively to prevent
-        // a crash if an SDK bug violates that guarantee.
-        val data = try {
-            nativeAd.data
-        } catch (_: UninitializedPropertyAccessException) {
+        // The SDK contract guarantees `data` is populated before `onAdLoaded` fires.
+        // Guard with `isInitialized` so a violation surfaces a logged error instead of
+        // a silent catch that hides an SDK bug.
+        if (!nativeAd::data.isInitialized) {
+            Log.e(TAG, "VelocityNativeAdHandler: onAdLoaded fired before data was set — SDK contract violation")
             listener.onNativeAdLoadFailed(MaxAdapterError.INTERNAL_ERROR)
             return
         }
+        val data = nativeAd.data
 
         val iconImage =
             data.advertiserIconUrl
