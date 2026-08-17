@@ -20,16 +20,19 @@ internal class VelocityNativeAdHandler(
     companion object {
         private const val TAG = "VelocityNativeAdHandler"
     }
+
     override fun onAdLoaded(nativeAd: VelocityNativeAd) {
         // The SDK contract guarantees `data` is populated before `onAdLoaded` fires.
-        // Guard with `isInitialized` so a violation surfaces a logged error instead of
-        // a silent catch that hides an SDK bug.
-        if (!nativeAd::data.isInitialized) {
-            Log.e(TAG, "VelocityNativeAdHandler: onAdLoaded fired before data was set — SDK contract violation")
-            listener.onNativeAdLoadFailed(MaxAdapterError.INTERNAL_ERROR)
-            return
-        }
-        val data = nativeAd.data
+        // Accessing it earlier throws, so catch the violation and surface a logged
+        // error instead of crashing the host app.
+        val data =
+            try {
+                nativeAd.data
+            } catch (e: UninitializedPropertyAccessException) {
+                Log.e(TAG, "onAdLoaded fired before data was set — SDK contract violation", e)
+                listener.onNativeAdLoadFailed(MaxAdapterError.INTERNAL_ERROR)
+                return
+            }
 
         val iconImage =
             data.advertiserIconUrl

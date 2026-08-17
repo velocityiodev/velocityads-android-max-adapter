@@ -1,6 +1,9 @@
 package com.applovin.mediation.adapters
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import com.applovin.mediation.adapter.MaxAdapter
 import com.applovin.mediation.adapter.MaxAdapterError
@@ -39,6 +42,8 @@ class VelocityAdsMediationAdapter(
     MaxNativeAdAdapter {
     companion object {
         private const val TAG = "VelocityAdsAdapter"
+        private const val INIT_POLL_INTERVAL_MS = 200L
+        private const val INIT_POLL_TIMEOUT_MS = 5_000L
     }
 
     // ---- ad object holders ----
@@ -50,7 +55,9 @@ class VelocityAdsMediationAdapter(
 
     // ---- handler holders (needed to wire the show-time listener) ----
     @Volatile private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
+
     @Volatile private var rewardedAdHandler: VelocityRewardedAdHandler? = null
+
     @Volatile private var nativeAdHandler: VelocityNativeAdHandler? = null
 
     // =========================================================================
@@ -94,6 +101,13 @@ class VelocityAdsMediationAdapter(
                 }
 
                 override fun onInitFailure(error: VelocityAdsError) {
+                    if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
+                        // Another caller (e.g. the host app) already kicked off Velocity init.
+                        // Not a permanent failure — wait for the in-flight init to finish and
+                        // report the real outcome.
+                        awaitInFlightInitialization(onCompletionListener)
+                        return
+                    }
                     onCompletionListener.onCompletion(
                         MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
                         "Velocity Ads init failed [${error.code}]: ${error.message}",
@@ -101,6 +115,41 @@ class VelocityAdsMediationAdapter(
                 }
             },
         )
+    }
+
+    /**
+     * Polls [VelocityAds.isInitialized] on the main thread until the in-flight initialization
+     * completes or [INIT_POLL_TIMEOUT_MS] elapses. The completion listener is invoked exactly
+     * once: every poll iteration either terminates with a completion call or reschedules itself.
+     */
+    private fun awaitInFlightInitialization(onCompletionListener: MaxAdapter.OnCompletionListener) {
+        val handler = Handler(Looper.getMainLooper())
+        val deadlineUptimeMs = SystemClock.uptimeMillis() + INIT_POLL_TIMEOUT_MS
+        val poll =
+            object : Runnable {
+                override fun run() {
+                    when {
+                        VelocityAds.isInitialized() -> {
+                            onCompletionListener.onCompletion(
+                                MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS,
+                                null,
+                            )
+                        }
+
+                        SystemClock.uptimeMillis() >= deadlineUptimeMs -> {
+                            onCompletionListener.onCompletion(
+                                MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
+                                "Velocity Ads: timed out waiting for in-flight SDK initialization",
+                            )
+                        }
+
+                        else -> {
+                            handler.postDelayed(this, INIT_POLL_INTERVAL_MS)
+                        }
+                    }
+                }
+            }
+        handler.post(poll)
     }
 
     override fun getSdkVersion(): String = VelocityAds.getSdkVersion()

@@ -20,7 +20,9 @@ internal class VelocityMaxNativeAd(
         maxNativeAdView.callToActionButton?.let { clickableViews.add(it) }
         maxNativeAdView.iconImageView?.let { clickableViews.add(it) }
         maxNativeAdView.advertiserTextView?.let { clickableViews.add(it) }
-        maxNativeAdView.optionsContentView?.let { clickableViews.add(it) }
+        // MAX renders the main image / media inside the media content view group — register
+        // it so taps on the creative area are billable clicks.
+        maxNativeAdView.mediaContentViewGroup?.let { clickableViews.add(it) }
 
         velocityNativeAd.registerViewForInteraction(maxNativeAdView, clickableViews)
     }

@@ -13,7 +13,7 @@ android {
         minSdk 24
         targetSdk 35
 
-        buildConfigField("String", "ADAPTER_VERSION", "\"${adapterVersion}\"")
+        buildConfigField("String", "ADAPTER_VERSION", "\"${VERSION_NAME}\"")
 
         consumerProguardFiles 'consumer-rules.pro'
     }
@@ -46,8 +46,14 @@ android {
 }
 
 dependencies {
-    compileOnly 'com.applovin:applovin-sdk:13.+'
+    compileOnly 'com.applovin:applovin-sdk:13.0.1'
     implementation "io.velocity:ads-sdk:${velocitySdkVersion}"
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test:2.1.21'
+    testImplementation 'org.mockito:mockito-core:5.23.0'
+    testImplementation 'org.robolectric:robolectric:4.11.1'
+    testImplementation 'com.applovin:applovin-sdk:13.0.1'
 }
 
 afterEvaluate {
