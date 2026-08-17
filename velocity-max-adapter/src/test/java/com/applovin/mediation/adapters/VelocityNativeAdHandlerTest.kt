@@ -121,7 +121,11 @@ class VelocityNativeAdHandlerTest {
         handler.onAdFailedToLoad(velocityNativeAd, VelocityAdsError(VelocityAdsErrorCode.NO_FILL, "no fill"))
 
         // Then
-        verify(listener).onNativeAdLoadFailed(MaxAdapterError.NO_FILL)
+        val errorCaptor = ArgumentCaptor.forClass(MaxAdapterError::class.java)
+        verify(listener).onNativeAdLoadFailed(errorCaptor.capture())
+        assertEquals(MaxAdapterError.NO_FILL.code, errorCaptor.value.code)
+        assertEquals(VelocityAdsErrorCode.NO_FILL, errorCaptor.value.mediatedNetworkErrorCode)
+        assertEquals("no fill", errorCaptor.value.mediatedNetworkErrorMessage)
     }
 
     @Test

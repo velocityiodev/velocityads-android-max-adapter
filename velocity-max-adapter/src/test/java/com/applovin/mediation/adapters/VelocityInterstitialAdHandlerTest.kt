@@ -7,10 +7,12 @@ import io.velocityads.sdk.models.VelocityAdsErrorCode
 import io.velocityads.sdk.models.VelocityFullscreenAd
 import org.junit.Before
 import org.junit.Test
+import org.mockito.ArgumentCaptor
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class VelocityInterstitialAdHandlerTest {
@@ -47,7 +49,11 @@ class VelocityInterstitialAdHandlerTest {
         handler.onAdFailedToLoad(ad, VelocityAdsError(VelocityAdsErrorCode.NO_FILL, "no fill"))
 
         // Then
-        verify(loadListener).onInterstitialAdLoadFailed(MaxAdapterError.NO_FILL)
+        val errorCaptor = ArgumentCaptor.forClass(MaxAdapterError::class.java)
+        verify(loadListener).onInterstitialAdLoadFailed(errorCaptor.capture())
+        assertEquals(MaxAdapterError.NO_FILL.code, errorCaptor.value.code)
+        assertEquals(VelocityAdsErrorCode.NO_FILL, errorCaptor.value.mediatedNetworkErrorCode)
+        assertEquals("no fill", errorCaptor.value.mediatedNetworkErrorMessage)
         verifyNoMoreInteractions(loadListener)
     }
 
@@ -85,7 +91,11 @@ class VelocityInterstitialAdHandlerTest {
         handler.onAdFailedToShow(ad, VelocityAdsError(VelocityAdsErrorCode.AD_SPENT, "spent"))
 
         // Then
-        verify(loadListener).onInterstitialAdDisplayFailed(MaxAdapterError.INVALID_LOAD_STATE)
+        val errorCaptor = ArgumentCaptor.forClass(MaxAdapterError::class.java)
+        verify(loadListener).onInterstitialAdDisplayFailed(errorCaptor.capture())
+        assertEquals(MaxAdapterError.INVALID_LOAD_STATE.code, errorCaptor.value.code)
+        assertEquals(VelocityAdsErrorCode.AD_SPENT, errorCaptor.value.mediatedNetworkErrorCode)
+        assertEquals("spent", errorCaptor.value.mediatedNetworkErrorMessage)
         verifyNoMoreInteractions(loadListener)
     }
 

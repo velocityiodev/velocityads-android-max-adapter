@@ -50,7 +50,11 @@ class VelocityRewardedAdHandlerTest {
         handler.onAdFailedToLoad(ad, VelocityAdsError(VelocityAdsErrorCode.NETWORK_ERROR, "offline"))
 
         // Then
-        verify(loadListener).onRewardedAdLoadFailed(MaxAdapterError.NO_CONNECTION)
+        val errorCaptor = ArgumentCaptor.forClass(MaxAdapterError::class.java)
+        verify(loadListener).onRewardedAdLoadFailed(errorCaptor.capture())
+        assertEquals(MaxAdapterError.NO_CONNECTION.code, errorCaptor.value.code)
+        assertEquals(VelocityAdsErrorCode.NETWORK_ERROR, errorCaptor.value.mediatedNetworkErrorCode)
+        assertEquals("offline", errorCaptor.value.mediatedNetworkErrorMessage)
         verifyNoMoreInteractions(loadListener)
     }
 
@@ -88,7 +92,11 @@ class VelocityRewardedAdHandlerTest {
         handler.onAdFailedToShow(ad, VelocityAdsError(VelocityAdsErrorCode.INTERNAL_ERROR, "boom"))
 
         // Then
-        verify(loadListener).onRewardedAdDisplayFailed(MaxAdapterError.INTERNAL_ERROR)
+        val errorCaptor = ArgumentCaptor.forClass(MaxAdapterError::class.java)
+        verify(loadListener).onRewardedAdDisplayFailed(errorCaptor.capture())
+        assertEquals(MaxAdapterError.INTERNAL_ERROR.code, errorCaptor.value.code)
+        assertEquals(VelocityAdsErrorCode.INTERNAL_ERROR, errorCaptor.value.mediatedNetworkErrorCode)
+        assertEquals("boom", errorCaptor.value.mediatedNetworkErrorMessage)
         verifyNoMoreInteractions(loadListener)
     }
 

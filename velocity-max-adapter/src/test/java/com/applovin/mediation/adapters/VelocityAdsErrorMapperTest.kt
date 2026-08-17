@@ -4,123 +4,138 @@ import com.applovin.mediation.adapter.MaxAdapterError
 import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
 import org.junit.Test
-import kotlin.test.assertSame
+import kotlin.test.assertEquals
 
 /**
  * Covers every constant in [VelocityAdsErrorCode] plus the unknown-code fallback.
+ * Each mapping must preserve the Velocity code and message as the third-party
+ * SDK error so they stay visible in MAX logs.
  */
 class VelocityAdsErrorMapperTest {
-    private fun map(code: Int): MaxAdapterError = VelocityAdsErrorMapper.toMaxAdapterError(VelocityAdsError(code, "test message"))
+    private companion object {
+        const val TEST_MESSAGE = "test message"
+    }
+
+    private fun assertMapping(
+        velocityCode: Int,
+        expected: MaxAdapterError,
+    ) {
+        val mapped = VelocityAdsErrorMapper.toMaxAdapterError(VelocityAdsError(velocityCode, TEST_MESSAGE))
+        assertEquals(expected.code, mapped.code, "MAX error code must match the expected constant")
+        assertEquals(expected.message, mapped.message, "MAX error message must match the expected constant")
+        assertEquals(velocityCode, mapped.mediatedNetworkErrorCode, "Velocity code must be preserved as the third-party code")
+        assertEquals(TEST_MESSAGE, mapped.mediatedNetworkErrorMessage, "Velocity message must be preserved as the third-party message")
+    }
 
     // ========== Server / network errors (1xxx) ==========
 
     @Test
     fun `INVALID_URL maps to BAD_REQUEST`() {
-        assertSame(MaxAdapterError.BAD_REQUEST, map(VelocityAdsErrorCode.INVALID_URL))
+        assertMapping(VelocityAdsErrorCode.INVALID_URL, MaxAdapterError.BAD_REQUEST)
     }
 
     @Test
     fun `NETWORK_ERROR maps to NO_CONNECTION`() {
-        assertSame(MaxAdapterError.NO_CONNECTION, map(VelocityAdsErrorCode.NETWORK_ERROR))
+        assertMapping(VelocityAdsErrorCode.NETWORK_ERROR, MaxAdapterError.NO_CONNECTION)
     }
 
     @Test
     fun `JSON_PARSE_ERROR maps to BAD_REQUEST`() {
-        assertSame(MaxAdapterError.BAD_REQUEST, map(VelocityAdsErrorCode.JSON_PARSE_ERROR))
+        assertMapping(VelocityAdsErrorCode.JSON_PARSE_ERROR, MaxAdapterError.BAD_REQUEST)
     }
 
     @Test
     fun `INVALID_RESPONSE maps to BAD_REQUEST`() {
-        assertSame(MaxAdapterError.BAD_REQUEST, map(VelocityAdsErrorCode.INVALID_RESPONSE))
+        assertMapping(VelocityAdsErrorCode.INVALID_RESPONSE, MaxAdapterError.BAD_REQUEST)
     }
 
     @Test
     fun `EMPTY_RESPONSE_BODY maps to BAD_REQUEST`() {
-        assertSame(MaxAdapterError.BAD_REQUEST, map(VelocityAdsErrorCode.EMPTY_RESPONSE_BODY))
+        assertMapping(VelocityAdsErrorCode.EMPTY_RESPONSE_BODY, MaxAdapterError.BAD_REQUEST)
     }
 
     @Test
     fun `SERVER_ERROR_FIELD maps to SERVER_ERROR`() {
-        assertSame(MaxAdapterError.SERVER_ERROR, map(VelocityAdsErrorCode.SERVER_ERROR_FIELD))
+        assertMapping(VelocityAdsErrorCode.SERVER_ERROR_FIELD, MaxAdapterError.SERVER_ERROR)
     }
 
     @Test
     fun `HTTP_FAILURE maps to SERVER_ERROR`() {
-        assertSame(MaxAdapterError.SERVER_ERROR, map(VelocityAdsErrorCode.HTTP_FAILURE))
+        assertMapping(VelocityAdsErrorCode.HTTP_FAILURE, MaxAdapterError.SERVER_ERROR)
     }
 
     // ========== SDK state errors (2xxx) ==========
 
     @Test
     fun `INVALID_APP_KEY maps to INVALID_CONFIGURATION`() {
-        assertSame(MaxAdapterError.INVALID_CONFIGURATION, map(VelocityAdsErrorCode.INVALID_APP_KEY))
+        assertMapping(VelocityAdsErrorCode.INVALID_APP_KEY, MaxAdapterError.INVALID_CONFIGURATION)
     }
 
     @Test
     fun `SDK_NOT_INITIALIZED maps to NOT_INITIALIZED`() {
-        assertSame(MaxAdapterError.NOT_INITIALIZED, map(VelocityAdsErrorCode.SDK_NOT_INITIALIZED))
+        assertMapping(VelocityAdsErrorCode.SDK_NOT_INITIALIZED, MaxAdapterError.NOT_INITIALIZED)
     }
 
     @Test
     fun `SDK_INITIALIZATION_IN_PROGRESS maps to NOT_INITIALIZED`() {
-        assertSame(MaxAdapterError.NOT_INITIALIZED, map(VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS))
+        assertMapping(VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS, MaxAdapterError.NOT_INITIALIZED)
     }
 
     @Test
     fun `LOAD_ALREADY_IN_PROGRESS maps to INVALID_LOAD_STATE`() {
-        assertSame(MaxAdapterError.INVALID_LOAD_STATE, map(VelocityAdsErrorCode.LOAD_ALREADY_IN_PROGRESS))
+        assertMapping(VelocityAdsErrorCode.LOAD_ALREADY_IN_PROGRESS, MaxAdapterError.INVALID_LOAD_STATE)
     }
 
     @Test
     fun `LOAD_SERVICE_UNAVAILABLE maps to NOT_INITIALIZED`() {
-        assertSame(MaxAdapterError.NOT_INITIALIZED, map(VelocityAdsErrorCode.LOAD_SERVICE_UNAVAILABLE))
+        assertMapping(VelocityAdsErrorCode.LOAD_SERVICE_UNAVAILABLE, MaxAdapterError.NOT_INITIALIZED)
     }
 
     @Test
     fun `INVALID_AD_RESPONSE maps to BAD_REQUEST`() {
-        assertSame(MaxAdapterError.BAD_REQUEST, map(VelocityAdsErrorCode.INVALID_AD_RESPONSE))
+        assertMapping(VelocityAdsErrorCode.INVALID_AD_RESPONSE, MaxAdapterError.BAD_REQUEST)
     }
 
     @Test
     fun `NO_FILL maps to NO_FILL`() {
-        assertSame(MaxAdapterError.NO_FILL, map(VelocityAdsErrorCode.NO_FILL))
+        assertMapping(VelocityAdsErrorCode.NO_FILL, MaxAdapterError.NO_FILL)
     }
 
     @Test
     fun `INTERNAL_ERROR maps to INTERNAL_ERROR`() {
-        assertSame(MaxAdapterError.INTERNAL_ERROR, map(VelocityAdsErrorCode.INTERNAL_ERROR))
+        assertMapping(VelocityAdsErrorCode.INTERNAL_ERROR, MaxAdapterError.INTERNAL_ERROR)
     }
 
     @Test
     fun `AD_ALREADY_LOADED maps to INVALID_LOAD_STATE`() {
-        assertSame(MaxAdapterError.INVALID_LOAD_STATE, map(VelocityAdsErrorCode.AD_ALREADY_LOADED))
+        assertMapping(VelocityAdsErrorCode.AD_ALREADY_LOADED, MaxAdapterError.INVALID_LOAD_STATE)
     }
 
     @Test
     fun `WATERFALL_LOAD_FAILED maps to INTERNAL_ERROR`() {
-        assertSame(MaxAdapterError.INTERNAL_ERROR, map(VelocityAdsErrorCode.WATERFALL_LOAD_FAILED))
+        assertMapping(VelocityAdsErrorCode.WATERFALL_LOAD_FAILED, MaxAdapterError.INTERNAL_ERROR)
     }
 
     @Test
     fun `AD_DESTROYED maps to INVALID_LOAD_STATE`() {
-        assertSame(MaxAdapterError.INVALID_LOAD_STATE, map(VelocityAdsErrorCode.AD_DESTROYED))
+        assertMapping(VelocityAdsErrorCode.AD_DESTROYED, MaxAdapterError.INVALID_LOAD_STATE)
     }
 
     @Test
     fun `INVALID_AD_UNIT_ID maps to INVALID_CONFIGURATION`() {
-        assertSame(MaxAdapterError.INVALID_CONFIGURATION, map(VelocityAdsErrorCode.INVALID_AD_UNIT_ID))
+        assertMapping(VelocityAdsErrorCode.INVALID_AD_UNIT_ID, MaxAdapterError.INVALID_CONFIGURATION)
     }
 
     @Test
     fun `AD_SPENT maps to INVALID_LOAD_STATE`() {
-        assertSame(MaxAdapterError.INVALID_LOAD_STATE, map(VelocityAdsErrorCode.AD_SPENT))
+        assertMapping(VelocityAdsErrorCode.AD_SPENT, MaxAdapterError.INVALID_LOAD_STATE)
     }
 
     // ========== Fallback ==========
 
     @Test
     fun `unknown code maps to UNSPECIFIED`() {
-        assertSame(MaxAdapterError.UNSPECIFIED, map(-1))
-        assertSame(MaxAdapterError.UNSPECIFIED, map(9999))
+        assertMapping(-1, MaxAdapterError.UNSPECIFIED)
+        assertMapping(9999, MaxAdapterError.UNSPECIFIED)
     }
 }
