@@ -52,7 +52,7 @@ internal class VelocityBannerAdHandler {
         }
 
         val sizeLabel = if (adaptiveWidthDp != null) "adaptive(requestedWidth=${adaptiveWidthDp}dp)" else adFormat.label
-        Log.d(TAG, "Loading banner: adUnitId='$adUnitId' format=$sizeLabel resolvedSize=${size.width}x${size.height}dp")
+        Log.d(TAG, "Loading banner: adUnitId='$adUnitId' format=$sizeLabel resolvedSize=${size.widthDp}x${size.heightDp}dp")
 
         val view = VelocityBannerAdView(context)
         bannerAdView = view
