@@ -5,11 +5,14 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdapter
 import com.applovin.mediation.adapter.MaxAdapterError
+import com.applovin.mediation.adapter.MaxAdViewAdapter
 import com.applovin.mediation.adapter.MaxInterstitialAdapter
 import com.applovin.mediation.adapter.MaxNativeAdAdapter
 import com.applovin.mediation.adapter.MaxRewardedAdapter
+import com.applovin.mediation.adapter.listeners.MaxAdViewAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
@@ -39,7 +42,8 @@ class VelocityAdsMediationAdapter(
 ) : MediationAdapterBase(sdk),
     MaxInterstitialAdapter,
     MaxRewardedAdapter,
-    MaxNativeAdAdapter {
+    MaxNativeAdAdapter,
+    MaxAdViewAdapter {
     companion object {
         private const val TAG = "VelocityAdsAdapter"
         private const val INIT_POLL_INTERVAL_MS = 200L
@@ -71,6 +75,8 @@ class VelocityAdsMediationAdapter(
     @Volatile private var rewardedAdHandler: VelocityRewardedAdHandler? = null
 
     @Volatile private var nativeAdHandler: VelocityNativeAdHandler? = null
+
+    @Volatile private var bannerAdHandler: VelocityBannerAdHandler? = null
 
     // =========================================================================
     // MediationAdapterBase
@@ -273,6 +279,9 @@ class VelocityAdsMediationAdapter(
         nativeAd?.destroy()
         nativeAd = null
         nativeAdHandler = null
+
+        bannerAdHandler?.destroy()
+        bannerAdHandler = null
     }
 
     // =========================================================================
@@ -436,6 +445,38 @@ class VelocityAdsMediationAdapter(
             val ad = VelocityNativeAd(adRequest)
             nativeAd = ad
             ad.load(handler)
+        }
+    }
+
+    // =========================================================================
+    // MaxAdViewAdapter
+    // =========================================================================
+
+    override fun loadAdViewAd(
+        parameters: MaxAdapterResponseParameters,
+        adFormat: MaxAdFormat,
+        activity: Activity?,
+        listener: MaxAdViewAdapterListener,
+    ) {
+        val adUnitId = parameters.getThirdPartyAdPlacementId()
+        if (adUnitId.isNullOrBlank()) {
+            listener.onAdViewAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
+            return
+        }
+
+        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
+        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+
+        ensureInitialized(parameters) { initialized ->
+            if (!initialized) {
+                listener.onAdViewAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
+                return@ensureInitialized
+            }
+
+            bannerAdHandler?.destroy()
+            val handler = VelocityBannerAdHandler()
+            bannerAdHandler = handler
+            handler.load(parameters, adFormat, activity, listener)
         }
     }
 }

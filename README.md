@@ -11,7 +11,7 @@ This library is the official AppLovin MAX **custom-network adapter** for the Vel
 | Interstitial | ✅ |
 | Rewarded | ✅ |
 | Native | ✅ |
-| Banner / MREC | ❌ |
+| Banner / MREC / Leaderboard | ✅ |
 
 ---
 
