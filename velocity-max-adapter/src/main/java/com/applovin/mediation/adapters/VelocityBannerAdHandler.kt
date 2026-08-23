@@ -30,12 +30,9 @@ internal class VelocityBannerAdHandler {
         private const val ADAPTIVE_BANNER_KEY = "adaptive_banner"
     }
 
-    // @Volatile to match the interstitial/rewarded/native ad holders in the adapter:
-    // VelocityBannerAd.destroy() is documented safe to call from any thread, so the holder
-    // may be read/cleared from a thread other than the one that ran the (main-thread) load.
+    // @Volatile: VelocityBannerAd.destroy() is documented safe to call from any thread, so
+    // the holder may be read/cleared from a thread other than the one that ran the load.
     @Volatile private var bannerAd: VelocityBannerAd? = null
-
-    @Volatile private var bannerAdView: VelocityBannerAdView? = null
 
     fun load(
         parameters: MaxAdapterResponseParameters,
@@ -48,7 +45,7 @@ internal class VelocityBannerAdHandler {
                 listener.onAdViewAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
                 return
             }
-        val adUnitId = parameters.thirdPartyAdPlacementId
+        val adUnitId = parameters.getThirdPartyAdPlacementId()
         if (adUnitId.isNullOrBlank()) {
             listener.onAdViewAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
             return
@@ -58,7 +55,6 @@ internal class VelocityBannerAdHandler {
         Log.d(TAG, "Loading banner: adUnitId='$adUnitId' format=${adFormat.label} resolvedSize=${size.widthDp}x${size.heightDp}dp")
 
         val view = VelocityBannerAdView(context)
-        bannerAdView = view
 
         val request = VelocityBannerAdRequest.Builder(adUnitId, size).build()
         val ad = VelocityBannerAd(request)
@@ -129,6 +125,5 @@ internal class VelocityBannerAdHandler {
     fun destroy() {
         bannerAd?.destroy()
         bannerAd = null
-        bannerAdView = null
     }
 }

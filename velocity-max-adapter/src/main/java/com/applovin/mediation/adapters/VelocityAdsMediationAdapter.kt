@@ -108,45 +108,29 @@ class VelocityAdsMediationAdapter(
 
         storedAppKey = appKey
 
-        val context = activity ?: getApplicationContext()
-
-        val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
-
-        VelocityAds.initSDK(
-            context,
-            initRequest,
-            object : VelocityAdsInitListener {
-                override fun onInitSuccess() {
-                    onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
-                }
-
-                override fun onInitFailure(error: VelocityAdsError) {
-                    if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
-                        // Another caller (e.g. the host app) already kicked off Velocity init.
-                        // Not a permanent failure — wait for the in-flight init to finish and
-                        // report the real outcome.
-                        awaitInFlightInitialization { initialized ->
-                            if (initialized) {
-                                onCompletionListener.onCompletion(
-                                    MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS,
-                                    null,
-                                )
-                            } else {
-                                onCompletionListener.onCompletion(
-                                    MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-                                    "Velocity Ads: timed out waiting for in-flight SDK initialization",
-                                )
-                            }
-                        }
-                        return
+        // Route through the shared initCoalescer so concurrent initialize() calls (one per
+        // adapter instance that MAX may create) and concurrent ensureInitialized() calls from
+        // the load path all share a single in-flight initSDK attempt and its outcome.
+        runOnMainNow {
+            if (VelocityAds.isInitialized()) {
+                onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+                return@runOnMainNow
+            }
+            val won =
+                initCoalescer.claim { initialized ->
+                    if (initialized) {
+                        onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+                    } else {
+                        onCompletionListener.onCompletion(
+                            MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
+                            "Velocity Ads: initialization failed or timed out",
+                        )
                     }
-                    onCompletionListener.onCompletion(
-                        MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-                        "Velocity Ads init failed [${error.code}]: ${error.message}",
-                    )
                 }
-            },
-        )
+            if (won) {
+                startClaimedInit(appKey)
+            }
+        }
     }
 
     /**
