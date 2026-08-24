@@ -17,6 +17,7 @@ import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
 import com.applovin.mediation.adapter.parameters.MaxAdapterInitializationParameters
+import com.applovin.mediation.adapter.parameters.MaxAdapterParameters
 import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
 import com.applovin.mediation.adapters.velocity.BuildConfig
 import com.applovin.sdk.AppLovinSdk
@@ -78,6 +79,13 @@ class VelocityAdsMediationAdapter(
 
     @Volatile private var bannerAdHandler: VelocityBannerAdHandler? = null
 
+    /**
+     * Set by [onDestroy]. Load continuations parked in the shared [initCoalescer] check this
+     * before creating ad objects, so an init that completes after MAX has destroyed this
+     * adapter instance cannot spawn orphaned ads that nothing will ever destroy.
+     */
+    @Volatile private var isDestroyed = false
+
     // =========================================================================
     // MediationAdapterBase
     // =========================================================================
@@ -97,11 +105,11 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        val appKey = parameters.getServerParameters().getString("app_key")
+        val appKey = extractAppKey(parameters)
         if (appKey.isNullOrBlank()) {
             onCompletionListener.onCompletion(
                 MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-                "Velocity Ads: missing app_key in server parameters",
+                "Velocity Ads: missing app_key in custom parameters",
             )
             return
         }
@@ -134,32 +142,71 @@ class VelocityAdsMediationAdapter(
     }
 
     /**
-     * Polls [VelocityAds.isInitialized] on the main thread until the in-flight initialization
-     * completes or [INIT_POLL_TIMEOUT_MS] elapses. [onResult] is invoked exactly once: every
-     * poll iteration either terminates with a result or reschedules itself.
+     * Extracts the Velocity app key from MAX parameters.
+     *
+     * For custom SDK networks, the dashboard's per-ad-unit "Custom Parameters" JSON is
+     * delivered via [MaxAdapterParameters.getCustomParameters], not `getServerParameters()`.
+     * Precedence: custom parameters `app_key` → server parameters `app_key` (defensive, in
+     * case MAX merges it there) → server parameters `app_id` (the dashboard's native
+     * "App ID" field, which MAX documents as arriving under that key).
      */
-    private fun awaitInFlightInitialization(onResult: (Boolean) -> Unit) {
+    internal fun extractAppKey(parameters: MaxAdapterParameters): String? =
+        parameters.customParameters?.getString("app_key")?.takeUnless { it.isBlank() }
+            ?: parameters.serverParameters?.getString("app_key")?.takeUnless { it.isBlank() }
+            ?: parameters.serverParameters?.getString("app_id")?.takeUnless { it.isBlank() }
+
+    /**
+     * Polls on the main thread until the host-owned in-flight initialization resolves, then
+     * either succeeds fast or re-attempts [VelocityAds.initSDK] itself — the Velocity SDK
+     * explicitly permits re-init from its FAILED state, so a failed host init is retried
+     * immediately instead of waiting out the full poll window. [onResult] is invoked exactly
+     * once: every path either terminates with a result or reschedules itself, and the
+     * deadline is only checked between attempts (never while an owned re-init is in flight).
+     */
+    private fun awaitInFlightInitialization(
+        appKey: String,
+        onResult: (Boolean) -> Unit,
+    ) {
         val handler = Handler(Looper.getMainLooper())
         val deadlineUptimeMs = SystemClock.uptimeMillis() + INIT_POLL_TIMEOUT_MS
-        val poll =
+        val attempt =
             object : Runnable {
                 override fun run() {
-                    when {
-                        VelocityAds.isInitialized() -> {
-                            onResult(true)
-                        }
+                    if (VelocityAds.isInitialized()) {
+                        onResult(true)
+                        return
+                    }
+                    if (SystemClock.uptimeMillis() >= deadlineUptimeMs) {
+                        onResult(false)
+                        return
+                    }
+                    val reattempt = this
+                    val retryListener =
+                        object : VelocityAdsInitListener {
+                            override fun onInitSuccess() {
+                                onResult(true)
+                            }
 
-                        SystemClock.uptimeMillis() >= deadlineUptimeMs -> {
-                            onResult(false)
+                            override fun onInitFailure(error: VelocityAdsError) {
+                                if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
+                                    // Host init still in flight — check again shortly.
+                                    handler.postDelayed(reattempt, INIT_POLL_INTERVAL_MS)
+                                } else {
+                                    Log.w(TAG, "Velocity Ads re-init after host init failed [${error.code}]: ${error.message}")
+                                    onResult(false)
+                                }
+                            }
                         }
-
-                        else -> {
-                            handler.postDelayed(this, INIT_POLL_INTERVAL_MS)
-                        }
+                    val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
+                    try {
+                        VelocityAds.initSDK(getApplicationContext(), initRequest, retryListener)
+                    } catch (t: Throwable) {
+                        Log.e(TAG, "Velocity Ads initSDK threw unexpectedly during re-init", t)
+                        onResult(false)
                     }
                 }
             }
-        handler.post(poll)
+        handler.post(attempt)
     }
 
     /**
@@ -181,9 +228,7 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        val appKey =
-            parameters.getServerParameters().getString("app_key")?.takeUnless { it.isBlank() }
-                ?: storedAppKey
+        val appKey = extractAppKey(parameters) ?: storedAppKey
         if (appKey.isNullOrBlank()) {
             // No app key ever seen — nothing to re-init with; fail as before.
             onReady(false)
@@ -209,9 +254,7 @@ class VelocityAdsMediationAdapter(
      */
     private fun startClaimedInit(appKey: String) {
         val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
-        VelocityAds.initSDK(
-            getApplicationContext(),
-            initRequest,
+        val initListener =
             object : VelocityAdsInitListener {
                 override fun onInitSuccess() {
                     initCoalescer.complete(true)
@@ -221,7 +264,7 @@ class VelocityAdsMediationAdapter(
                     if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
                         // Another caller (e.g. the host app) owns the in-flight init —
                         // wait for its outcome instead of failing the parked loads.
-                        awaitInFlightInitialization { initialized ->
+                        awaitInFlightInitialization(appKey) { initialized ->
                             initCoalescer.complete(initialized)
                         }
                         return
@@ -229,8 +272,16 @@ class VelocityAdsMediationAdapter(
                     Log.w(TAG, "Velocity Ads re-init before load failed [${error.code}]: ${error.message}")
                     initCoalescer.complete(false)
                 }
-            },
-        )
+            }
+        try {
+            VelocityAds.initSDK(getApplicationContext(), initRequest, initListener)
+        } catch (t: Throwable) {
+            // The Velocity SDK's public API contract is no-throw, but a synchronous throw
+            // here would otherwise strand the claimed coalescer forever (parking every
+            // future load) and propagate a crash into MAX. Fail the attempt cleanly instead.
+            Log.e(TAG, "Velocity Ads initSDK threw unexpectedly", t)
+            initCoalescer.complete(false)
+        }
     }
 
     /**
@@ -252,6 +303,8 @@ class VelocityAdsMediationAdapter(
     override fun getAdapterVersion(): String = BuildConfig.ADAPTER_VERSION
 
     override fun onDestroy() {
+        isDestroyed = true
+
         interstitialAd?.destroy()
         interstitialAd = null
         interstitialAdHandler = null
@@ -287,6 +340,7 @@ class VelocityAdsMediationAdapter(
         parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
 
         ensureInitialized(parameters) { initialized ->
+            if (isDestroyed) return@ensureInitialized
             if (!initialized) {
                 listener.onInterstitialAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
                 return@ensureInitialized
@@ -350,7 +404,12 @@ class VelocityAdsMediationAdapter(
         parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
         parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
 
+        // Capture the publisher's dashboard-configured reward (amount/currency and the
+        // always-reward override) so onUserRewarded can deliver it via getReward().
+        configureReward(parameters)
+
         ensureInitialized(parameters) { initialized ->
+            if (isDestroyed) return@ensureInitialized
             if (!initialized) {
                 listener.onRewardedAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
                 return@ensureInitialized
@@ -365,6 +424,7 @@ class VelocityAdsMediationAdapter(
             val handler =
                 VelocityRewardedAdHandler(
                     listener,
+                    rewardSupplier = ::getReward,
                     onDismissed = { if (rewardedAd === ad) rewardedAd = null },
                 )
             rewardedAdHandler = handler
@@ -415,6 +475,7 @@ class VelocityAdsMediationAdapter(
         parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
 
         ensureInitialized(parameters) { initialized ->
+            if (isDestroyed) return@ensureInitialized
             if (!initialized) {
                 listener.onNativeAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
                 return@ensureInitialized
@@ -452,6 +513,7 @@ class VelocityAdsMediationAdapter(
         parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
 
         ensureInitialized(parameters) { initialized ->
+            if (isDestroyed) return@ensureInitialized
             if (!initialized) {
                 listener.onAdViewAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
                 return@ensureInitialized

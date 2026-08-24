@@ -114,7 +114,7 @@ class VelocityRewardedAdHandlerTest {
     }
 
     @Test
-    fun `onUserRewarded delivers MAX default reward label and amount`() {
+    fun `onUserRewarded delivers MAX default reward label and amount when no supplier injected`() {
         // Given
         val handler = VelocityRewardedAdHandler(loadListener)
         val rewardCaptor = ArgumentCaptor.forClass(MaxReward::class.java)
@@ -126,6 +126,27 @@ class VelocityRewardedAdHandlerTest {
         verify(loadListener).onUserRewarded(rewardCaptor.capture())
         assertEquals(MaxReward.DEFAULT_LABEL, rewardCaptor.value.label)
         assertEquals(MaxReward.DEFAULT_AMOUNT, rewardCaptor.value.amount)
+    }
+
+    @Test
+    fun `onUserRewarded delivers the injected reward supplier's reward`() {
+        // Given — a dashboard-configured reward, as the adapter's getReward() would supply
+        val configuredReward =
+            object : MaxReward {
+                override fun getLabel(): String = "coins"
+
+                override fun getAmount(): Int = 50
+            }
+        val handler = VelocityRewardedAdHandler(loadListener, rewardSupplier = { configuredReward })
+        val rewardCaptor = ArgumentCaptor.forClass(MaxReward::class.java)
+
+        // When
+        handler.onUserRewarded(ad)
+
+        // Then
+        verify(loadListener).onUserRewarded(rewardCaptor.capture())
+        assertEquals("coins", rewardCaptor.value.label)
+        assertEquals(50, rewardCaptor.value.amount)
     }
 
     @Test

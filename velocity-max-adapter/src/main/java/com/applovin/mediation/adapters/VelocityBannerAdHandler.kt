@@ -42,7 +42,7 @@ internal class VelocityBannerAdHandler {
     ) {
         val context =
             activity ?: run {
-                listener.onAdViewAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
+                listener.onAdViewAdLoadFailed(MaxAdapterError.MISSING_ACTIVITY)
                 return
             }
         val adUnitId = parameters.getThirdPartyAdPlacementId()

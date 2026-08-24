@@ -9,6 +9,10 @@ import io.velocityads.sdk.models.VelocityFullscreenAd
 /**
  * Translates [VelocityRewardedAdListener] callbacks to [MaxRewardedAdapterListener] calls.
  *
+ * @param rewardSupplier Supplies the [MaxReward] delivered in [onUserRewarded]. The adapter
+ *                       injects [com.applovin.mediation.adapters.MediationAdapterBase.getReward]
+ *                       so the publisher's dashboard-configured amount/currency is honored;
+ *                       the default falls back to MAX's default reward.
  * @param onDismissed Optional hook invoked after [onAdDismissed] has forwarded to MAX.
  *                    Used by the adapter to release its ad reference once the ad is fully gone.
  */
@@ -16,6 +20,13 @@ internal class VelocityRewardedAdHandler(
     // Main-thread-confined: MAX and Velocity both deliver all callbacks on the main thread,
     // so no cross-thread visibility guarantee is needed here.
     private var listener: MaxRewardedAdapterListener,
+    private val rewardSupplier: () -> MaxReward = {
+        object : MaxReward {
+            override fun getLabel(): String = MaxReward.DEFAULT_LABEL
+
+            override fun getAmount(): Int = MaxReward.DEFAULT_AMOUNT
+        }
+    },
     private val onDismissed: () -> Unit = {},
 ) : VelocityRewardedAdListener {
     /**
@@ -60,17 +71,11 @@ internal class VelocityRewardedAdHandler(
     }
 
     /**
-     * Fires before [onAdDismissed]. Velocity does not provide currency/amount, so we use
-     * MAX defaults.
+     * Fires before [onAdDismissed]. The reward comes from [rewardSupplier] — by default MAX's
+     * defaults, or the dashboard-configured reward when the adapter injects `getReward()`.
      */
     override fun onUserRewarded(ad: VelocityFullscreenAd) {
-        listener.onUserRewarded(
-            object : MaxReward {
-                override fun getLabel(): String = MaxReward.DEFAULT_LABEL
-
-                override fun getAmount(): Int = MaxReward.DEFAULT_AMOUNT
-            },
-        )
+        listener.onUserRewarded(rewardSupplier())
     }
 
     override fun onAdDismissed(ad: VelocityFullscreenAd) {

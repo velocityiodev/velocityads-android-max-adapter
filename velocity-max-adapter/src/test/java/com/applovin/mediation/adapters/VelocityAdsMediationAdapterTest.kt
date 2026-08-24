@@ -18,9 +18,12 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /**
  * Unit tests for [VelocityAdsMediationAdapter].
@@ -58,60 +61,72 @@ class VelocityAdsMediationAdapterTest {
     }
 
     /**
-     * Resets the companion-object fields of [VelocityAdsMediationAdapter] that are shared
-     * across instances and persist between tests: [storedAppKey] and the [InitCoalescer].
-     * Uses reflection because both are `private` — this is intentional, as exposing a
-     * `resetForTesting()` hook on the production class would widen its API surface.
+     * Resets the static fields of [VelocityAdsMediationAdapter] that are shared across
+     * instances and persist between tests: [storedAppKey] and the [InitCoalescer]. Kotlin
+     * compiles companion-object properties as static fields on the **outer** class, so the
+     * lookup targets [VelocityAdsMediationAdapter] itself. Uses reflection because both are
+     * `private` — this is intentional, as exposing a `resetForTesting()` hook on the
+     * production class would widen its API surface.
      */
     private fun resetCompanionState() {
         try {
-            val companionClass =
-                Class.forName("com.applovin.mediation.adapters.VelocityAdsMediationAdapter\$Companion")
+            val adapterClass = VelocityAdsMediationAdapter::class.java
 
-            val storedAppKeyField = companionClass.getDeclaredField("storedAppKey")
+            val storedAppKeyField = adapterClass.getDeclaredField("storedAppKey")
             storedAppKeyField.isAccessible = true
-            storedAppKeyField.set(VelocityAdsMediationAdapter.Companion, null)
+            storedAppKeyField.set(null, null)
 
-            val coalescerField = companionClass.getDeclaredField("initCoalescer")
-            coalescerField.isAccessible = true
-            val coalescer = coalescerField.get(VelocityAdsMediationAdapter.Companion)
-
-            if (coalescer is InitCoalescer<*>) {
-                val pendingField = InitCoalescer::class.java.getDeclaredField("pendingHandlers")
-                pendingField.isAccessible = true
-                @Suppress("UNCHECKED_CAST")
-                (pendingField.get(coalescer) as? MutableList<Any?>)?.clear()
-
-                val claimedField = InitCoalescer::class.java.getDeclaredField("isClaimed")
-                claimedField.isAccessible = true
-                claimedField.setBoolean(coalescer, false)
-            }
+            sharedCoalescer()?.complete(false)
         } catch (_: Exception) {
             // Best-effort; failing to reset is not fatal but may cause inter-test interference.
         }
     }
 
+    /** Returns the shared companion [InitCoalescer] via reflection, or null on failure. */
+    private fun sharedCoalescer(): InitCoalescer<Boolean>? =
+        try {
+            val coalescerField = VelocityAdsMediationAdapter::class.java.getDeclaredField("initCoalescer")
+            coalescerField.isAccessible = true
+            @Suppress("UNCHECKED_CAST")
+            coalescerField.get(null) as? InitCoalescer<Boolean>
+        } catch (_: Exception) {
+            null
+        }
+
     // ========== Helpers ==========
 
-    private fun mockInitParams(appKey: String? = "test-app-key"): MaxAdapterInitializationParameters {
+    private fun mockInitParams(
+        appKey: String? = "test-app-key",
+        inCustomParameters: Boolean = true,
+    ): MaxAdapterInitializationParameters {
         val params = mock(MaxAdapterInitializationParameters::class.java)
-        val bundle = Bundle()
-        if (appKey != null) bundle.putString("app_key", appKey)
-        `when`(params.getServerParameters()).thenReturn(bundle)
+        val serverBundle = Bundle()
+        val customBundle = Bundle()
+        if (appKey != null) {
+            if (inCustomParameters) customBundle.putString("app_key", appKey) else serverBundle.putString("app_key", appKey)
+        }
+        `when`(params.getServerParameters()).thenReturn(serverBundle)
+        `when`(params.getCustomParameters()).thenReturn(customBundle)
         `when`(params.hasUserConsent()).thenReturn(null)
         `when`(params.isDoNotSell()).thenReturn(null)
         return params
     }
 
     /**
-     * Returns load parameters with no `app_key` in the server bundle, ensuring
+     * Returns load parameters. With the default null [appKey] and a never-initialised SDK,
      * [VelocityAdsMediationAdapter.ensureInitialized] takes the fast-fail path
      * (no app key ever seen → `onReady(false)`) without touching the real Velocity SDK.
      */
-    private fun mockLoadParams(adUnitId: String? = "test-ad-unit"): MaxAdapterResponseParameters {
+    private fun mockLoadParams(
+        adUnitId: String? = "test-ad-unit",
+        appKey: String? = null,
+    ): MaxAdapterResponseParameters {
         val params = mock(MaxAdapterResponseParameters::class.java)
         `when`(params.getThirdPartyAdPlacementId()).thenReturn(adUnitId)
         `when`(params.getServerParameters()).thenReturn(Bundle())
+        val customBundle = Bundle()
+        if (appKey != null) customBundle.putString("app_key", appKey)
+        `when`(params.getCustomParameters()).thenReturn(customBundle)
         `when`(params.hasUserConsent()).thenReturn(null)
         `when`(params.isDoNotSell()).thenReturn(null)
         return params
@@ -131,7 +146,7 @@ class VelocityAdsMediationAdapterTest {
         // Then
         verify(onCompletion).onCompletion(
             MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in server parameters",
+            "Velocity Ads: missing app_key in custom parameters",
         )
     }
 
@@ -147,7 +162,7 @@ class VelocityAdsMediationAdapterTest {
         // Then
         verify(onCompletion).onCompletion(
             MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in server parameters",
+            "Velocity Ads: missing app_key in custom parameters",
         )
     }
 
@@ -175,11 +190,11 @@ class VelocityAdsMediationAdapterTest {
         // Then — both get a clean failure without interfering with each other
         verify(onCompletion1).onCompletion(
             MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in server parameters",
+            "Velocity Ads: missing app_key in custom parameters",
         )
         verify(onCompletion2).onCompletion(
             MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in server parameters",
+            "Velocity Ads: missing app_key in custom parameters",
         )
     }
 
@@ -401,5 +416,113 @@ class VelocityAdsMediationAdapterTest {
     fun `destroy before any load is a safe no-op`() {
         // When / Then — must not throw
         adapter.onDestroy()
+    }
+
+    // ========== extractAppKey precedence ==========
+
+    private fun paramsWithBundles(
+        customParams: Bundle?,
+        serverParams: Bundle?,
+    ): MaxAdapterResponseParameters {
+        val params = mock(MaxAdapterResponseParameters::class.java)
+        `when`(params.getCustomParameters()).thenReturn(customParams)
+        `when`(params.getServerParameters()).thenReturn(serverParams)
+        return params
+    }
+
+    @Test
+    fun `extractAppKey prefers app_key from custom parameters`() {
+        // Given — all three sources populated
+        val custom = Bundle().apply { putString("app_key", "from-custom") }
+        val server =
+            Bundle().apply {
+                putString("app_key", "from-server")
+                putString("app_id", "from-app-id")
+            }
+
+        // When / Then
+        assertEquals("from-custom", adapter.extractAppKey(paramsWithBundles(custom, server)))
+    }
+
+    @Test
+    fun `extractAppKey falls back to app_key from server parameters`() {
+        // Given — no custom-parameters key
+        val server =
+            Bundle().apply {
+                putString("app_key", "from-server")
+                putString("app_id", "from-app-id")
+            }
+
+        // When / Then
+        assertEquals("from-server", adapter.extractAppKey(paramsWithBundles(Bundle(), server)))
+    }
+
+    @Test
+    fun `extractAppKey falls back to app_id from server parameters`() {
+        // Given — only the dashboard's native App ID field is set
+        val server = Bundle().apply { putString("app_id", "from-app-id") }
+
+        // When / Then
+        assertEquals("from-app-id", adapter.extractAppKey(paramsWithBundles(Bundle(), server)))
+    }
+
+    @Test
+    fun `extractAppKey skips blank values when falling back`() {
+        // Given — blank custom app_key must not shadow the server value
+        val custom = Bundle().apply { putString("app_key", "   ") }
+        val server = Bundle().apply { putString("app_key", "from-server") }
+
+        // When / Then
+        assertEquals("from-server", adapter.extractAppKey(paramsWithBundles(custom, server)))
+    }
+
+    @Test
+    fun `extractAppKey returns null when no source has a value`() {
+        assertNull(adapter.extractAppKey(paramsWithBundles(Bundle(), Bundle())))
+    }
+
+    @Test
+    fun `extractAppKey tolerates null parameter bundles`() {
+        assertNull(adapter.extractAppKey(paramsWithBundles(null, null)))
+    }
+
+    // ========== destroy-guarded parked load continuations ==========
+    //
+    // A load whose continuation is parked in the shared InitCoalescer (init in flight)
+    // must become a no-op if the adapter is destroyed before init completes: no ad object
+    // creation and no listener callback. Pre-claiming the coalescer keeps the parked load
+    // from winning the claim, so the real Velocity SDK is never touched.
+
+    @Test
+    fun `parked load continuation after destroy is a no-op`() {
+        // Given — an in-flight init owns the coalescer, and a load parks behind it
+        val coalescer = sharedCoalescer()
+        checkNotNull(coalescer) { "Could not access shared InitCoalescer via reflection" }
+        coalescer.claim { }
+        val listener = mock(MaxInterstitialAdapterListener::class.java)
+        adapter.loadInterstitialAd(mockLoadParams(appKey = "test-app-key"), null, listener)
+
+        // When — the adapter is destroyed, then the init resolves successfully
+        adapter.onDestroy()
+        coalescer.complete(true)
+
+        // Then — the parked continuation bails out: no callbacks, no orphaned ad
+        verifyNoInteractions(listener)
+    }
+
+    @Test
+    fun `parked load continuation before destroy still delivers NOT_INITIALIZED on failure`() {
+        // Given
+        val coalescer = sharedCoalescer()
+        checkNotNull(coalescer) { "Could not access shared InitCoalescer via reflection" }
+        coalescer.claim { }
+        val listener = mock(MaxInterstitialAdapterListener::class.java)
+        adapter.loadInterstitialAd(mockLoadParams(appKey = "test-app-key"), null, listener)
+
+        // When — the init fails while the adapter is still alive
+        coalescer.complete(false)
+
+        // Then
+        verify(listener).onInterstitialAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
     }
 }

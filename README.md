@@ -34,8 +34,9 @@ Once published to Maven Central, add the adapter to your app's `build.gradle`:
 
 ```groovy
 dependencies {
-    // AppLovin MAX SDK (already present in most apps)
-    implementation 'com.applovin:applovin-sdk:13.+'
+    // AppLovin MAX SDK (already present in most apps) — 13.0.1 is the version this
+    // adapter is built and tested against; any 13.x release is compatible.
+    implementation 'com.applovin:applovin-sdk:13.0.1'
 
     // Velocity Ads SDK
     implementation 'io.velocity:ads-sdk:0.10.0'
@@ -101,10 +102,12 @@ For each placement you want Velocity Ads to fill:
 
 1. Go to **Mediation → Manage → Ad Units** and open (or create) the ad unit.
 2. In the **Custom Networks & Deals** section, add **Velocity Ads**.
-3. Set the **App Key** in **Server Parameters** (JSON):
+3. Set the **App Key** in the **Custom Parameters** field (JSON):
    ```json
    { "app_key": "YOUR_VELOCITY_APP_KEY" }
    ```
+   The adapter also accepts the app key from the custom network's **App ID** field as a
+   fallback, but the Custom Parameters JSON is the recommended configuration.
 4. Set the **Placement ID** to your Velocity ad unit ID. This is passed to the adapter as `thirdPartyAdPlacementId`.
 
 ---
@@ -124,7 +127,7 @@ No additional integration is required in your app. If a signal is `null` (not se
 
 ## SDK Initialization
 
-The adapter initializes the Velocity SDK automatically the first time MAX calls `initialize()`. You do **not** need to call `VelocityAds.initSDK()` yourself. The `app_key` is read from the server parameters you configured in the MAX dashboard.
+The adapter initializes the Velocity SDK automatically the first time MAX calls `initialize()`. You do **not** need to call `VelocityAds.initSDK()` yourself. The `app_key` is read from the Custom Parameters JSON you configured in the MAX dashboard (with the custom network's App ID field as a fallback).
 
 If the SDK is already initialized (e.g. you initialize it directly in your app), the adapter detects this and reports `INITIALIZED_SUCCESS` immediately.
 

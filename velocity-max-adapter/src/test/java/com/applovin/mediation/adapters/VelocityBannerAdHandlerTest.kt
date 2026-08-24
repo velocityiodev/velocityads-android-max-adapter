@@ -58,12 +58,12 @@ class VelocityBannerAdHandlerTest {
     // ========== load() guards ==========
 
     @Test
-    fun `load with null activity fails with INVALID_CONFIGURATION`() {
+    fun `load with null activity fails with MISSING_ACTIVITY`() {
         // When
         handler.load(parameters(), MaxAdFormat.BANNER, null, listener)
 
         // Then
-        verify(listener).onAdViewAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
+        verify(listener).onAdViewAdLoadFailed(MaxAdapterError.MISSING_ACTIVITY)
         verify(listener, never()).onAdViewAdLoaded(org.mockito.Mockito.any())
     }
 
