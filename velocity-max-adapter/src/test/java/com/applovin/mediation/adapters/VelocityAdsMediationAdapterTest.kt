@@ -28,10 +28,9 @@ import kotlin.test.assertNull
 /**
  * Unit tests for [VelocityAdsMediationAdapter].
  *
- * Note on VelocityAds mocking: [VelocityAds] is a Kotlin `object` that uses interface
- * delegation without `@JvmStatic` annotations, so its methods are dispatched as virtual
- * calls through the singleton instance rather than as static invocations. This means
- * Mockito's `mockStatic` cannot intercept them. Tests that depend on
+ * Note on VelocityAds mocking: [VelocityAds] is a Kotlin `object` using interface
+ * delegation, so its methods are not static invocations — Mockito's `mockStatic`
+ * cannot intercept them. Tests that depend on
  * [io.velocityads.sdk.VelocityAds.isInitialized] returning `true` are therefore covered
  * at the integration-test level; the unit tests here focus on the adapter's guard logic,
  * wiring, and error-delivery behaviour — all of which are testable without SDK
@@ -62,11 +61,9 @@ class VelocityAdsMediationAdapterTest {
 
     /**
      * Resets the static fields of [VelocityAdsMediationAdapter] that are shared across
-     * instances and persist between tests: [storedAppKey] and the [InitCoalescer]. Kotlin
-     * compiles companion-object properties as static fields on the **outer** class, so the
-     * lookup targets [VelocityAdsMediationAdapter] itself. Uses reflection because both are
-     * `private` — this is intentional, as exposing a `resetForTesting()` hook on the
-     * production class would widen its API surface.
+     * instances and persist between tests: [storedAppKey] and the [InitCoalescer].
+     * Uses reflection because both are `private` — exposing a `resetForTesting()` hook
+     * on the production class would widen its API surface.
      */
     private fun resetCompanionState() {
         try {
