@@ -255,10 +255,6 @@ class VelocityAdsMediationAdapter(
         parameters: MaxAdapterResponseParameters,
         onReady: (Boolean) -> Unit,
     ) {
-        // Covers the lazy-init path where network-level initialize() never saw an
-        // app_id and the real SDK init happens here on the first load.
-        forwardMediationInfo()
-
         if (VelocityAds.isInitialized()) {
             onReady(true)
             return

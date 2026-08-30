@@ -123,7 +123,7 @@ No additional integration is required in your app. If a signal is `null` (not se
 
 ## Mediation environment reporting
 
-At initialization (and again on the lazy-init load path) the adapter reports the mediation environment to the Velocity SDK via `VelocityAdsMediationBridge.setMediationInfo(name, adapterVersion, sdkVersion)`:
+At initialization the adapter reports the mediation environment to the Velocity SDK via `VelocityAdsMediationBridge.setMediationInfo(name, adapterVersion, sdkVersion)`:
 
 | Field | Value |
 |---|---|
