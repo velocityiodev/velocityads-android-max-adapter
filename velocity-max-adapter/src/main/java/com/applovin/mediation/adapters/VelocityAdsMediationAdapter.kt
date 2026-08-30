@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.widget.ImageView
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdapter
 import com.applovin.mediation.adapter.MaxAdapterError
@@ -32,6 +33,7 @@ import io.velocityads.sdk.models.VelocityNativeAd
 import io.velocityads.sdk.models.VelocityNativeAdRequest
 import io.velocityads.sdk.models.VelocityRewardedAd
 import io.velocityads.sdk.models.VelocityRewardedAdRequest
+import java.util.concurrent.TimeUnit
 
 /**
  * AppLovin MAX custom-network adapter for the Velocity Ads SDK.
@@ -49,6 +51,7 @@ class VelocityAdsMediationAdapter(
         private const val TAG = "VelocityAdsAdapter"
         private const val INIT_POLL_INTERVAL_MS = 200L
         private const val INIT_POLL_TIMEOUT_MS = 5_000L
+        private const val MEDIA_IMAGE_TIMEOUT_SECONDS = 10L
 
         /**
          * Shared across adapter instances (MAX may create one per ad unit) because
@@ -58,26 +61,28 @@ class VelocityAdsMediationAdapter(
 
         /**
          * The app key captured from the first [initialize] call, used as a fallback for
-         * load-time re-init attempts whose response parameters lack `app_key`.
+         * load-time re-init attempts whose response parameters lack `app_id`.
          */
         @Volatile private var storedAppKey: String? = null
     }
 
     // ---- ad object holders ----
-    @Volatile private var interstitialAd: VelocityInterstitialAd? = null
+    // All reads and writes happen on the main thread (MAX entry points are main-thread-confined,
+    // and the ensureInitialized/load continuations are dispatched there via runOnMainNow).
+    private var interstitialAd: VelocityInterstitialAd? = null
 
-    @Volatile private var rewardedAd: VelocityRewardedAd? = null
+    private var rewardedAd: VelocityRewardedAd? = null
 
-    @Volatile private var nativeAd: VelocityNativeAd? = null
+    private var nativeAd: VelocityNativeAd? = null
 
     // ---- handler holders (needed to wire the show-time listener) ----
-    @Volatile private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
+    private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
 
-    @Volatile private var rewardedAdHandler: VelocityRewardedAdHandler? = null
+    private var rewardedAdHandler: VelocityRewardedAdHandler? = null
 
-    @Volatile private var nativeAdHandler: VelocityNativeAdHandler? = null
+    private var nativeAdHandler: VelocityNativeAdHandler? = null
 
-    @Volatile private var bannerAdHandler: VelocityBannerAdHandler? = null
+    private var bannerAdHandler: VelocityBannerAdHandler? = null
 
     /**
      * Set by [onDestroy]. Load continuations parked in the shared [initCoalescer] check this
@@ -107,10 +112,12 @@ class VelocityAdsMediationAdapter(
 
         val appKey = extractAppKey(parameters)
         if (appKey.isNullOrBlank()) {
-            onCompletionListener.onCompletion(
-                MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-                "Velocity Ads: missing app_key in custom parameters",
-            )
+            // The App ID field is optional in the MAX dashboard's Custom Network settings,
+            // so app_id may not be present at network-level initialization time. Report
+            // INITIALIZED_UNKNOWN — the adapter is ready but the app key arrives via the
+            // per-placement App ID field at load time; ensureInitialized() performs the
+            // real SDK init lazily on the first load.
+            onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_UNKNOWN, null)
             return
         }
 
@@ -144,16 +151,11 @@ class VelocityAdsMediationAdapter(
     /**
      * Extracts the Velocity app key from MAX parameters.
      *
-     * For custom SDK networks, the dashboard's per-ad-unit "Custom Parameters" JSON is
-     * delivered via [MaxAdapterParameters.getCustomParameters], not `getServerParameters()`.
-     * Precedence: custom parameters `app_key` → server parameters `app_key` (defensive, in
-     * case MAX merges it there) → server parameters `app_id` (the dashboard's native
-     * "App ID" field, which MAX documents as arriving under that key).
+     * MAX delivers the value set in the **App ID** field of the Custom Network dashboard
+     * entry via [MaxAdapterParameters.getServerParameters] under the key `"app_id"`.
      */
     internal fun extractAppKey(parameters: MaxAdapterParameters): String? =
-        parameters.customParameters?.getString("app_key")?.takeUnless { it.isBlank() }
-            ?: parameters.serverParameters?.getString("app_key")?.takeUnless { it.isBlank() }
-            ?: parameters.serverParameters?.getString("app_id")?.takeUnless { it.isBlank() }
+        parameters.serverParameters?.getString("app_id")?.takeUnless { it.isBlank() }
 
     /**
      * Polls on the main thread until the host-owned in-flight initialization resolves, then
@@ -485,13 +487,35 @@ class VelocityAdsMediationAdapter(
             nativeAd = null
 
             val adRequest = VelocityNativeAdRequest.Builder(adUnitId).build()
-            val handler = VelocityNativeAdHandler(listener)
+            val handler = VelocityNativeAdHandler(listener, nativeMediaViewLoader())
             nativeAdHandler = handler
             val ad = VelocityNativeAd(adRequest)
             nativeAd = ad
             ad.load(handler)
         }
     }
+
+    /**
+     * Builds a [NativeMediaViewLoader] backed by MAX's own image helpers:
+     * [createDrawableFuture] downloads on [getCachingExecutorService], and the resulting
+     * [ImageView] is delivered on the main thread as required by the loader contract.
+     */
+    private fun nativeMediaViewLoader(): NativeMediaViewLoader =
+        NativeMediaViewLoader { url, completion ->
+            cachingExecutorService.execute {
+                val drawable =
+                    try {
+                        createDrawableFuture(url, applicationContext.resources)
+                            .get(MEDIA_IMAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to download native ad media image: $url", e)
+                        null
+                    }
+                Handler(Looper.getMainLooper()).post {
+                    completion(drawable?.let { ImageView(applicationContext).apply { setImageDrawable(it) } })
+                }
+            }
+        }
 
     // =========================================================================
     // MaxAdViewAdapter

@@ -36,9 +36,9 @@ internal class VelocityMaxNativeAd(
         return true
     }
 
-    // Deprecated in MAX 13 in favor of prepareForInteraction (which this class overrides and
-    // handles), but kept as the documented fallback for template renders on older MAX SDKs
-    // and the hybrid native activity path.
+    // prepareViewForInteraction is deprecated in MAX 13 in favor of prepareForInteraction
+    // (which this class overrides above), but kept as the documented fallback for
+    // template renders on older MAX SDK versions.
     @Suppress("OVERRIDE_DEPRECATION")
     override fun prepareViewForInteraction(maxNativeAdView: MaxNativeAdView) {
         val clickableViews = mutableListOf<View>()

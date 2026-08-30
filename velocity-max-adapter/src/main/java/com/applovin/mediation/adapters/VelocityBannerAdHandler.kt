@@ -30,8 +30,8 @@ internal class VelocityBannerAdHandler {
         private const val ADAPTIVE_BANNER_KEY = "adaptive_banner"
     }
 
-    // @Volatile: VelocityBannerAd.destroy() is documented safe to call from any thread, so
-    // the holder may be read/cleared from a thread other than the one that ran the load.
+    // @Volatile ensures that a destroy() call from any thread sees the most recent value written
+    // by load() on the main thread — VelocityBannerAd.destroy() is safe to call from any thread.
     @Volatile private var bannerAd: VelocityBannerAd? = null
 
     fun load(

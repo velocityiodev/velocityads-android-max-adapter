@@ -2,6 +2,7 @@ package com.applovin.mediation.adapters
 
 import android.net.Uri
 import android.util.Log
+import android.view.View
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
@@ -11,11 +12,28 @@ import io.velocityads.sdk.listeners.VelocityNativeAdListener
 import io.velocityads.sdk.models.VelocityNativeAd
 
 /**
+ * Downloads the native ad's main image off the calling thread and delivers a media view
+ * ready to hand to MAX (`null` on failure). The completion must be invoked on the main thread.
+ */
+internal fun interface NativeMediaViewLoader {
+    fun load(
+        url: String,
+        completion: (View?) -> Unit,
+    )
+}
+
+/**
  * Translates [VelocityNativeAdListener] callbacks to [MaxNativeAdAdapterListener] calls,
  * and assembles the [VelocityMaxNativeAd] delivered to MAX.
+ *
+ * @param listener The MAX listener to forward ad load and lifecycle events to.
+ * @param mediaViewLoader Optional loader used to download the native ad's main image and wrap
+ *   it in a [android.view.View] for MAX's media content slot. When `null`, the ad is delivered
+ *   without a media view. The loader must invoke its completion on the main thread.
  */
 internal class VelocityNativeAdHandler(
     private val listener: MaxNativeAdAdapterListener,
+    private val mediaViewLoader: NativeMediaViewLoader? = null,
 ) : VelocityNativeAdListener {
     companion object {
         private const val TAG = "VelocityNativeAdHandler"
@@ -40,26 +58,38 @@ internal class VelocityNativeAdHandler(
                 ?.let { MaxNativeAdImage(Uri.parse(it)) }
 
         // Prefer square crop; fall back to landscape hero.
-        val mainImage =
-            (data.squareImageUrl?.takeIf { it.isNotBlank() } ?: data.largeImageUrl?.takeIf { it.isNotBlank() })
-                ?.let { MaxNativeAdImage(Uri.parse(it)) }
+        val mainImageUrl =
+            data.squareImageUrl?.takeIf { it.isNotBlank() }
+                ?: data.largeImageUrl?.takeIf { it.isNotBlank() }
 
-        val maxNativeAd =
-            VelocityMaxNativeAd(
-                builder =
-                    MaxNativeAd
-                        .Builder()
-                        .setAdFormat(MaxAdFormat.NATIVE)
-                        .setTitle(data.title)
-                        .setBody(data.description)
-                        .setCallToAction(data.callToAction)
-                        .setAdvertiser(data.advertiserName)
-                        .setIcon(iconImage)
-                        .setMainImage(mainImage),
-                velocityNativeAd = nativeAd,
-            )
+        val builder =
+            MaxNativeAd
+                .Builder()
+                .setAdFormat(MaxAdFormat.NATIVE)
+                .setTitle(data.title)
+                .setBody(data.description)
+                .setCallToAction(data.callToAction)
+                .setAdvertiser(data.advertiserName)
+                .setIcon(iconImage)
+                .setMainImage(mainImageUrl?.let { MaxNativeAdImage(Uri.parse(it)) })
 
-        listener.onNativeAdLoaded(maxNativeAd, null)
+        // MaxNativeAdView only renders getMediaView() into the media content view group —
+        // it never falls back to mainImage — so the adapter must download the image itself
+        // and hand MAX a ready view (the same pattern AppLovin's URL-based network
+        // adapters use). Failure is non-fatal: the ad is delivered without media.
+        val loader = mediaViewLoader
+        if (loader != null && mainImageUrl != null) {
+            loader.load(mainImageUrl) { mediaView ->
+                if (mediaView != null) {
+                    builder.setMediaView(mediaView)
+                } else {
+                    Log.w(TAG, "Failed to load native ad media image — delivering ad without media view")
+                }
+                listener.onNativeAdLoaded(VelocityMaxNativeAd(builder, nativeAd), null)
+            }
+        } else {
+            listener.onNativeAdLoaded(VelocityMaxNativeAd(builder, nativeAd), null)
+        }
     }
 
     override fun onAdFailedToLoad(

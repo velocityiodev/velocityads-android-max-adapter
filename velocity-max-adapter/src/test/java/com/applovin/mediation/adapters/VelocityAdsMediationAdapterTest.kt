@@ -97,16 +97,12 @@ class VelocityAdsMediationAdapterTest {
 
     private fun mockInitParams(
         appKey: String? = "test-app-key",
-        inCustomParameters: Boolean = true,
     ): MaxAdapterInitializationParameters {
         val params = mock(MaxAdapterInitializationParameters::class.java)
         val serverBundle = Bundle()
-        val customBundle = Bundle()
-        if (appKey != null) {
-            if (inCustomParameters) customBundle.putString("app_key", appKey) else serverBundle.putString("app_key", appKey)
-        }
+        if (appKey != null) serverBundle.putString("app_id", appKey)
         `when`(params.getServerParameters()).thenReturn(serverBundle)
-        `when`(params.getCustomParameters()).thenReturn(customBundle)
+        `when`(params.getCustomParameters()).thenReturn(Bundle())
         `when`(params.hasUserConsent()).thenReturn(null)
         `when`(params.isDoNotSell()).thenReturn(null)
         return params
@@ -123,10 +119,10 @@ class VelocityAdsMediationAdapterTest {
     ): MaxAdapterResponseParameters {
         val params = mock(MaxAdapterResponseParameters::class.java)
         `when`(params.getThirdPartyAdPlacementId()).thenReturn(adUnitId)
-        `when`(params.getServerParameters()).thenReturn(Bundle())
-        val customBundle = Bundle()
-        if (appKey != null) customBundle.putString("app_key", appKey)
-        `when`(params.getCustomParameters()).thenReturn(customBundle)
+        val serverBundle = Bundle()
+        if (appKey != null) serverBundle.putString("app_id", appKey)
+        `when`(params.getServerParameters()).thenReturn(serverBundle)
+        `when`(params.getCustomParameters()).thenReturn(Bundle())
         `when`(params.hasUserConsent()).thenReturn(null)
         `when`(params.isDoNotSell()).thenReturn(null)
         return params
@@ -135,7 +131,7 @@ class VelocityAdsMediationAdapterTest {
     // ========== initialize() ==========
 
     @Test
-    fun `initialize with null appKey delivers INITIALIZED_FAILURE`() {
+    fun `initialize with null appKey delivers INITIALIZED_UNKNOWN`() {
         // Given
         val params = mockInitParams(appKey = null)
         val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
@@ -143,15 +139,12 @@ class VelocityAdsMediationAdapterTest {
         // When
         adapter.initialize(params, null, onCompletion)
 
-        // Then
-        verify(onCompletion).onCompletion(
-            MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in custom parameters",
-        )
+        // Then — no app_id at network level is normal; MAX still routes loads through this network
+        verify(onCompletion).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_UNKNOWN, null)
     }
 
     @Test
-    fun `initialize with blank appKey delivers INITIALIZED_FAILURE`() {
+    fun `initialize with blank appKey delivers INITIALIZED_UNKNOWN`() {
         // Given
         val params = mockInitParams(appKey = "   ")
         val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
@@ -160,23 +153,21 @@ class VelocityAdsMediationAdapterTest {
         adapter.initialize(params, null, onCompletion)
 
         // Then
-        verify(onCompletion).onCompletion(
-            MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in custom parameters",
-        )
+        verify(onCompletion).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_UNKNOWN, null)
     }
 
     /**
      * When two adapter instances call [VelocityAdsMediationAdapter.initialize] with no
-     * `app_key`, both must fail immediately and independently without crashing or
-     * interfering with each other.
+     * `app_id`, both must report INITIALIZED_UNKNOWN immediately and independently without
+     * crashing or interfering with each other. The real SDK init is deferred to the first
+     * load, where the waterfall entry's app_id is available via ensureInitialized().
      *
      * The coalescing behaviour for in-flight init attempts is exercised exhaustively by
      * [InitCoalescerTest]. End-to-end verification of two concurrent SUCCESS deliveries
      * requires mocking [VelocityAds] (integration test territory — see class KDoc).
      */
     @Test
-    fun `concurrent initialize calls with no appKey both deliver INITIALIZED_FAILURE gracefully`() {
+    fun `concurrent initialize calls with no appKey both deliver INITIALIZED_UNKNOWN gracefully`() {
         // Given — two adapter instances, neither with an app key
         val adapter2 = VelocityAdsMediationAdapter(sdk)
         val params = mockInitParams(appKey = null)
@@ -187,15 +178,9 @@ class VelocityAdsMediationAdapterTest {
         adapter.initialize(params, null, onCompletion1)
         adapter2.initialize(params, null, onCompletion2)
 
-        // Then — both get a clean failure without interfering with each other
-        verify(onCompletion1).onCompletion(
-            MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in custom parameters",
-        )
-        verify(onCompletion2).onCompletion(
-            MaxAdapter.InitializationStatus.INITIALIZED_FAILURE,
-            "Velocity Ads: missing app_key in custom parameters",
-        )
+        // Then — both report unknown cleanly without interfering with each other
+        verify(onCompletion1).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_UNKNOWN, null)
+        verify(onCompletion2).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_UNKNOWN, null)
     }
 
     @Test
@@ -306,7 +291,7 @@ class VelocityAdsMediationAdapterTest {
     //
     // When VelocityAds is not initialised (the real state in a unit-test JVM) and no
     // app key is available (initialize() was never called, so storedAppKey is null, and
-    // the load parameters carry no app_key), ensureInitialized() calls onReady(false)
+    // the load parameters carry no app_id), ensureInitialized() calls onReady(false)
     // synchronously — before reaching the coalescer or the real SDK. This tests the full
     // load delegate wiring without any SDK mocking.
 
@@ -418,72 +403,43 @@ class VelocityAdsMediationAdapterTest {
         adapter.onDestroy()
     }
 
-    // ========== extractAppKey precedence ==========
+    // ========== extractAppKey ==========
 
     private fun paramsWithBundles(
-        customParams: Bundle?,
         serverParams: Bundle?,
     ): MaxAdapterResponseParameters {
         val params = mock(MaxAdapterResponseParameters::class.java)
-        `when`(params.getCustomParameters()).thenReturn(customParams)
+        `when`(params.getCustomParameters()).thenReturn(Bundle())
         `when`(params.getServerParameters()).thenReturn(serverParams)
         return params
     }
 
     @Test
-    fun `extractAppKey prefers app_key from custom parameters`() {
-        // Given — all three sources populated
-        val custom = Bundle().apply { putString("app_key", "from-custom") }
-        val server =
-            Bundle().apply {
-                putString("app_key", "from-server")
-                putString("app_id", "from-app-id")
-            }
-
-        // When / Then
-        assertEquals("from-custom", adapter.extractAppKey(paramsWithBundles(custom, server)))
-    }
-
-    @Test
-    fun `extractAppKey falls back to app_key from server parameters`() {
-        // Given — no custom-parameters key
-        val server =
-            Bundle().apply {
-                putString("app_key", "from-server")
-                putString("app_id", "from-app-id")
-            }
-
-        // When / Then
-        assertEquals("from-server", adapter.extractAppKey(paramsWithBundles(Bundle(), server)))
-    }
-
-    @Test
-    fun `extractAppKey falls back to app_id from server parameters`() {
-        // Given — only the dashboard's native App ID field is set
+    fun `extractAppKey reads app_id from server parameters`() {
+        // Given
         val server = Bundle().apply { putString("app_id", "from-app-id") }
 
         // When / Then
-        assertEquals("from-app-id", adapter.extractAppKey(paramsWithBundles(Bundle(), server)))
+        assertEquals("from-app-id", adapter.extractAppKey(paramsWithBundles(server)))
     }
 
     @Test
-    fun `extractAppKey skips blank values when falling back`() {
-        // Given — blank custom app_key must not shadow the server value
-        val custom = Bundle().apply { putString("app_key", "   ") }
-        val server = Bundle().apply { putString("app_key", "from-server") }
+    fun `extractAppKey returns null when app_id is blank`() {
+        // Given
+        val server = Bundle().apply { putString("app_id", "   ") }
 
         // When / Then
-        assertEquals("from-server", adapter.extractAppKey(paramsWithBundles(custom, server)))
+        assertNull(adapter.extractAppKey(paramsWithBundles(server)))
     }
 
     @Test
     fun `extractAppKey returns null when no source has a value`() {
-        assertNull(adapter.extractAppKey(paramsWithBundles(Bundle(), Bundle())))
+        assertNull(adapter.extractAppKey(paramsWithBundles(Bundle())))
     }
 
     @Test
     fun `extractAppKey tolerates null parameter bundles`() {
-        assertNull(adapter.extractAppKey(paramsWithBundles(null, null)))
+        assertNull(adapter.extractAppKey(paramsWithBundles(null)))
     }
 
     // ========== destroy-guarded parked load continuations ==========
