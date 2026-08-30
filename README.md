@@ -121,6 +121,20 @@ No additional integration is required in your app. If a signal is `null` (not se
 
 ---
 
+## Mediation environment reporting
+
+At initialization (and again on the lazy-init load path) the adapter reports the mediation environment to the Velocity SDK via `VelocityAdsMediationBridge.setMediationInfo(name, adapterVersion, sdkVersion)`:
+
+| Field | Value |
+|---|---|
+| Mediation name | `"max"` |
+| Adapter version | This adapter's version (e.g. `0.10.0.0`) |
+| Mediation SDK version | The AppLovin SDK version (`AppLovinSdk.VERSION`) |
+
+The Velocity SDK attaches these values to every ad request (`mobileMetadata`) and every analytics event, so traffic can be sliced by mediation platform, adapter version, and AppLovin SDK version. Forwarding happens once per process — the values never change mid-session.
+
+---
+
 ## SDK Initialization
 
 The adapter initializes the Velocity SDK automatically the first time MAX calls `initialize()`. You do **not** need to call `VelocityAds.initSDK()` yourself. The app key is read from the **App ID** field you configured in the MAX Custom Network dashboard entry.

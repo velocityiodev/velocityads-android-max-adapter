@@ -15,3 +15,4 @@ _2026-08-30_
 * The Velocity app key is read from the **App ID** field of the MAX dashboard ad-unit entry and delivered via `serverParameters.getString("app_id")`.
 * Lazy SDK initialization: if the app key is absent at MAX network-level `initialize`, the adapter initializes the Velocity SDK on the first load that carries a valid app key. Concurrent init calls are coalesced so only one `initSDK` attempt is in flight at a time.
 * GDPR user consent and CCPA Do Not Sell signals are forwarded from MAX to the Velocity SDK at both init time and on every ad load.
+* Mediation environment reporting: the adapter identifies itself to the Velocity SDK (mediation name `max`, adapter version, AppLovin SDK version) so every Velocity ad request and analytics event carries the mediation context.

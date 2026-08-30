@@ -24,6 +24,7 @@ import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
 import com.applovin.mediation.adapters.velocity.BuildConfig
 import com.applovin.sdk.AppLovinSdk
 import io.velocityads.sdk.VelocityAds
+import io.velocityads.sdk.VelocityAdsMediationBridge
 import io.velocityads.sdk.listeners.VelocityAdsInitListener
 import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
@@ -65,6 +66,32 @@ class VelocityAdsMediationAdapter(
          * load-time re-init attempts whose response parameters lack `app_id`.
          */
         @Volatile private var storedAppKey: String? = null
+
+        /**
+         * Mediation name reported to the Velocity SDK via [VelocityAdsMediationBridge].
+         * Owned by this adapter — the SDK accepts any lowercase canonical string.
+         */
+        private const val MEDIATION_NAME = "max"
+
+        /**
+         * One-shot guard for [forwardMediationInfo] — the values (mediation name,
+         * adapter version, AppLovin SDK version) never change mid-session.
+         */
+        private val mediationInfoForwarded = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        /**
+         * Reports the mediation environment (MAX) to the Velocity SDK so it is attached
+         * to every ad request and analytics event. Safe to call from any adapter entry
+         * point; only the first call has an effect.
+         */
+        internal fun forwardMediationInfo() {
+            if (!mediationInfoForwarded.compareAndSet(false, true)) return
+            VelocityAdsMediationBridge.setMediationInfo(
+                MEDIATION_NAME,
+                BuildConfig.ADAPTER_VERSION,
+                AppLovinSdk.VERSION,
+            )
+        }
     }
 
     // ---- ad object holders ----
@@ -101,6 +128,9 @@ class VelocityAdsMediationAdapter(
         activity: Activity?,
         onCompletionListener: MaxAdapter.OnCompletionListener,
     ) {
+        // Identify the mediation environment before SDK init so the very first
+        // request and event carry it.
+        forwardMediationInfo()
         // Forward privacy signals before the fast-path return so consent is always
         // up-to-date even when the SDK was pre-initialised by the host app.
         forwardPrivacySettings()
@@ -225,6 +255,10 @@ class VelocityAdsMediationAdapter(
         parameters: MaxAdapterResponseParameters,
         onReady: (Boolean) -> Unit,
     ) {
+        // Covers the lazy-init path where network-level initialize() never saw an
+        // app_id and the real SDK init happens here on the first load.
+        forwardMediationInfo()
+
         if (VelocityAds.isInitialized()) {
             onReady(true)
             return
