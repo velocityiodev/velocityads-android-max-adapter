@@ -13,6 +13,7 @@ import com.applovin.mediation.adapter.MaxAdViewAdapter
 import com.applovin.mediation.adapter.MaxInterstitialAdapter
 import com.applovin.mediation.adapter.MaxNativeAdAdapter
 import com.applovin.mediation.adapter.MaxRewardedAdapter
+import com.applovin.sdk.AppLovinPrivacySettings
 import com.applovin.mediation.adapter.listeners.MaxAdViewAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
@@ -102,8 +103,7 @@ class VelocityAdsMediationAdapter(
     ) {
         // Forward privacy signals before the fast-path return so consent is always
         // up-to-date even when the SDK was pre-initialised by the host app.
-        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+        forwardPrivacySettings()
 
         if (VelocityAds.isInitialized()) {
             onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
@@ -338,8 +338,7 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+        forwardPrivacySettings()
 
         ensureInitialized(parameters) { initialized ->
             if (isDestroyed) return@ensureInitialized
@@ -403,8 +402,7 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+        forwardPrivacySettings()
 
         // Capture the publisher's dashboard-configured reward (amount/currency and the
         // always-reward override) so onUserRewarded can deliver it via getReward().
@@ -473,8 +471,7 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+        forwardPrivacySettings()
 
         ensureInitialized(parameters) { initialized ->
             if (isDestroyed) return@ensureInitialized
@@ -533,8 +530,7 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        parameters.hasUserConsent()?.let { VelocityAds.setConsent(it) }
-        parameters.isDoNotSell()?.let { VelocityAds.setDoNotSell(it) }
+        forwardPrivacySettings()
 
         ensureInitialized(parameters) { initialized ->
             if (isDestroyed) return@ensureInitialized
@@ -547,6 +543,38 @@ class VelocityAdsMediationAdapter(
             val handler = VelocityBannerAdHandler()
             bannerAdHandler = handler
             handler.load(parameters, adFormat, activity, listener)
+        }
+    }
+
+    // =========================================================================
+    // Privacy helpers
+    // =========================================================================
+
+    /**
+     * Forwards the current AppLovin privacy state to the Velocity SDK.
+     *
+     * Reads directly from [AppLovinPrivacySettings] — the authoritative Android source —
+     * rather than from MAX adapter parameters. [MaxAdapterParameters.hasUserConsent] and
+     * [MaxAdapterParameters.isDoNotSell] are only reliably non-null when the publisher has
+     * already called `AppLovinPrivacySettings.setHasUserConsent/setDoNotSell` *and* the MAX
+     * SDK has had time to propagate those values into the parameter object, which is not
+     * guaranteed on every adapter entry point. Reading from [AppLovinPrivacySettings]
+     * directly is always accurate and requires no parameter threading.
+     *
+     * Called at [initialize] (before SDK boots) and on every ad load, so mid-session
+     * CMP changes propagate on the next request.
+     */
+    private fun forwardPrivacySettings() {
+        try {
+            val ctx = applicationContext ?: return
+            if (AppLovinPrivacySettings.isUserConsentSet(ctx)) {
+                VelocityAds.setConsent(AppLovinPrivacySettings.hasUserConsent(ctx))
+            }
+            if (AppLovinPrivacySettings.isDoNotSellSet(ctx)) {
+                VelocityAds.setDoNotSell(AppLovinPrivacySettings.isDoNotSell(ctx))
+            }
+        } catch (_: Exception) {
+            // Defensive: privacy forwarding must never crash or block ad loading.
         }
     }
 }
