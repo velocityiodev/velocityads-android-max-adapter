@@ -78,15 +78,24 @@ internal class VelocityBannerAdHandler {
     ): VelocityBannerAdSize {
         val adaptive = parameters.serverParameters.getBoolean(ADAPTIVE_BANNER_KEY, false)
         return when {
-            adFormat == MaxAdFormat.MREC -> VelocityBannerAdSize.MREC
-            adFormat == MaxAdFormat.LEADER -> VelocityBannerAdSize.LEADERBOARD
+            adFormat == MaxAdFormat.MREC -> {
+                VelocityBannerAdSize.MREC
+            }
+
+            adFormat == MaxAdFormat.LEADER -> {
+                VelocityBannerAdSize.LEADERBOARD
+            }
+
             adaptive -> {
                 val widthDp =
                     (parameters.localExtraParameters[ADAPTIVE_WIDTH_KEY] as? Number)?.toInt()
                         ?: context.resources.configuration.screenWidthDp
                 VelocityBannerAdSize.getAdaptiveBannerAdSize(context, widthDp)
             }
-            else -> VelocityBannerAdSize.BANNER
+
+            else -> {
+                VelocityBannerAdSize.BANNER
+            }
         }
     }
 

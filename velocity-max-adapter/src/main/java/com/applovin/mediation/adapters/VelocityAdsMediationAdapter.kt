@@ -65,7 +65,9 @@ class VelocityAdsMediationAdapter(
          * One-shot guard for [forwardMediationInfo] — the values (mediation name,
          * adapter version, AppLovin SDK version) never change mid-session.
          */
-        private val mediationInfoForwarded = java.util.concurrent.atomic.AtomicBoolean(false)
+        private val mediationInfoForwarded =
+            java.util.concurrent.atomic
+                .AtomicBoolean(false)
 
         /**
          * Reports the mediation environment (MAX) to the Velocity SDK so it is attached
