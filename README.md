@@ -42,7 +42,7 @@ dependencies {
     implementation 'io.velocity:ads-sdk:0.10.0'
 
     // Velocity Ads MAX Adapter
-    implementation 'io.velocity:ads-sdk-max-adapter:0.10.0.0'
+    implementation 'io.velocity:max-mediation:0.10.0.0'
 }
 ```
 
@@ -148,6 +148,92 @@ If the SDK is already initialized (e.g. you initialize it directly in your app),
 | Adapter version | Velocity SDK version | Notes |
 |---|---|---|
 | 0.10.0.0 | 0.10.0 | Initial release |
+
+---
+
+## Multi-mediation naming conventions
+
+Velocity Ads ships adapters for several mediation platforms (MAX, GAM, LevelPlay, and more). The naming scheme below is **fixed** so adding a new platform never requires renaming existing artifacts:
+
+### Two adapter families (never collide)
+
+| Family | Purpose | When |
+|---|---|---|
+| **Outbound** | Velocity Ads SDK embedded into another platform's mediation | Now (MAX, GAM, LevelPlay…) |
+| **Inbound** (reserved) | Other networks embedded into a future Velocity Ads mediation platform | Future |
+
+### Android Maven coordinates
+
+| Family | Group ID | Artifact ID pattern | Example |
+|---|---|---|---|
+| Outbound | `io.velocity` | `<mediation>-mediation` | `io.velocity:max-mediation` |
+| Inbound (reserved) | `io.velocity.mediation` | `<network>-adapter` | `io.velocity.mediation:meta-adapter` |
+
+The `io.velocity` namespace on Maven Central automatically covers `io.velocity.mediation` — no new registration is needed for inbound adapters.
+
+### iOS pod / SPM names
+
+Outbound adapters use the class name registered in the mediation dashboard as the pod/package name:
+
+| Adapter | Pod / SPM | Podspec `s.version` | Git tag (SPM) |
+|---|---|---|---|
+| MAX | `VelocityAdsMaxAdapter` | 4 segments (`0.10.0.0`) | 3 segments (`0.10.0`) |
+| GAM (future) | `VelocityAdsGamAdapter` | 4 segments | 3 segments |
+| LevelPlay (future) | `VelocityAdsLevelPlayAdapter` | 4 segments | 3 segments |
+
+### Version scheme
+
+All adapters use the **4-segment convention** (`<sdkMajor>.<sdkMinor>.<sdkPatch>.<adapterBuild>`) matching the MAX / GAM / LevelPlay adapter ecosystems. The 4th segment increments for adapter-only fixes that ship against the same SDK version.
+
+### Mediation name string
+
+Each adapter hard-codes a short, lowercase token via `VelocityAdsMediationBridge.setMediationInfo(name:…)`. This string is intentionally a free string owned by the adapter repo (not an SDK enum), so adding a new platform never requires an SDK release:
+
+| Adapter | Mediation name string |
+|---|---|
+| MAX | `"max"` |
+| GAM (future) | `"gam"` |
+| LevelPlay (future) | `"levelplay"` |
+
+### Repository names
+
+Repo names follow the code, not the artifact: `velocityads-{android,ios}-<mediation>-adapter`. The mediation token is the product name, not the company name (`max`, not `applovin`).
+
+---
+
+## Release process
+
+> **SDK-first requirement**: `io.velocity:ads-sdk:<version>` must be published to Maven Central before this adapter can be released. CI will fail until the matching SDK version ships.
+
+### Prerequisites
+
+Set the following secrets at the **`velocityiodev` org level** (shared automatically with all adapter repos; values are identical to those used by the SDK repos):
+
+| Secret | Purpose |
+|---|---|
+| `SIGNING_KEY_ID` | Short GPG key ID for Maven artifact signing |
+| `SIGNING_KEY` | GPG private key for Maven artifact signing (armored, base64) |
+| `SIGNING_PASSWORD` | Passphrase for `SIGNING_KEY` |
+| `CENTRAL_PORTAL_TOKEN_USER` | Maven Central Portal user token (username half) |
+| `CENTRAL_PORTAL_TOKEN_PASSWORD` | Maven Central Portal user token (password half) |
+| `GPG_PRIVATE_KEY` | GPG private key for git tag signing (armored) |
+| `GPG_PASSPHRASE` | Passphrase for `GPG_PRIVATE_KEY` |
+| `GPG_TAGGER_NAME` | Display name for signed git tags |
+| `GPG_TAGGER_EMAIL` | Email for signed git tags |
+| `GPG_SIGNING_KEY_ID` | Full-length GPG key fingerprint for tag signing |
+
+### Steps
+
+1. On a release branch (`release/<version>`, e.g. `release/0.10.0.0`):
+   - Bump `VERSION_NAME` in `gradle.properties`.
+   - Add a `## <version>` entry to `CHANGELOG.md`.
+2. Push the branch and open a draft PR for review.
+3. **After the SDK version is on Maven Central**, go to **Actions → Release – Publish to Maven Central** and click **Run workflow**:
+   - **Branch**: your release branch.
+   - **Version**: the 4-segment version, e.g. `0.10.0.0`.
+   - **Dry run**: `true` for a first check (stages to Maven Central, skips tag/release); `false` for the real release.
+4. If the dry run passes, drop the staging repository from the [Maven Central Portal](https://central.sonatype.com/) and re-run with **Dry run = false**.
+5. Merge the release PR after the workflow succeeds.
 
 ---
 

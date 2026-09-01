@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jlleitschuh.gradle.ktlint'
     id 'maven-publish'
     id 'signing'
 }
@@ -69,7 +70,7 @@ afterEvaluate {
                 pom {
                     name = 'Velocity Ads MAX Adapter'
                     description = 'AppLovin MAX custom network adapter for Velocity Ads SDK'
-                    url = 'https://github.com/velocityads/velocityads-android-max-adapter'
+                    url = 'https://github.com/velocityiodev/velocityads-android-max-adapter'
                     licenses {
                         license {
                             name = 'The Apache License, Version 2.0'
@@ -84,15 +85,22 @@ afterEvaluate {
                         }
                     }
                     scm {
-                        connection = 'scm:git:github.com/velocityads/velocityads-android-max-adapter.git'
-                        developerConnection = 'scm:git:ssh://github.com/velocityads/velocityads-android-max-adapter.git'
-                        url = 'https://github.com/velocityads/velocityads-android-max-adapter'
+                        connection = 'scm:git:github.com/velocityiodev/velocityads-android-max-adapter.git'
+                        developerConnection = 'scm:git:ssh://github.com/velocityiodev/velocityads-android-max-adapter.git'
+                        url = 'https://github.com/velocityiodev/velocityads-android-max-adapter'
                     }
                 }
             }
         }
         repositories {
-            mavenLocal()
+            maven {
+                name = "sonatype"
+                url = "https://ossrh-staging-api.central.sonatype.com/service/local/"
+                credentials {
+                    username = System.getenv("CENTRAL_PORTAL_TOKEN_USER")
+                    password = System.getenv("CENTRAL_PORTAL_TOKEN_PASSWORD")
+                }
+            }
         }
     }
 
