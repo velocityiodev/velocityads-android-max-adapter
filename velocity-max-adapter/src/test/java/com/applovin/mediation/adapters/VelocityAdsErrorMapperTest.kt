@@ -3,8 +3,8 @@ package com.applovin.mediation.adapters
 import com.applovin.mediation.adapter.MaxAdapterError
 import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
-import org.junit.Test
 import kotlin.test.assertEquals
+import org.junit.Test
 
 /**
  * Covers every constant in [VelocityAdsErrorCode] plus the unknown-code fallback.

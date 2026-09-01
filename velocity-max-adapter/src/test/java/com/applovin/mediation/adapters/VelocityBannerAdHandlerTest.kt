@@ -11,6 +11,8 @@ import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
 import io.velocityads.sdk.models.VelocityBannerAd
 import io.velocityads.sdk.models.VelocityBannerAdSize
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,8 +25,6 @@ import org.mockito.Mockito.`when`
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])

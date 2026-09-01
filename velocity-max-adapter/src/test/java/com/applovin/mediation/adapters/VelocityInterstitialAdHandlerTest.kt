@@ -5,6 +5,8 @@ import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
 import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
 import io.velocityads.sdk.models.VelocityFullscreenAd
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.ArgumentCaptor
@@ -12,8 +14,6 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoMoreInteractions
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class VelocityInterstitialAdHandlerTest {
     private lateinit var loadListener: MaxInterstitialAdapterListener

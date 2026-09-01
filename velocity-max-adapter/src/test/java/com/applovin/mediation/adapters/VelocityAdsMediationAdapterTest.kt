@@ -10,6 +10,8 @@ import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
 import com.applovin.mediation.adapter.parameters.MaxAdapterInitializationParameters
 import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
 import com.applovin.sdk.AppLovinSdk
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -21,8 +23,6 @@ import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 /**
  * Unit tests for [VelocityAdsMediationAdapter].
