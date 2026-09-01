@@ -1,5 +1,6 @@
 package com.applovin.mediation.adapters
 
+import android.app.Activity
 import android.os.Bundle
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdapter
@@ -21,6 +22,7 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -290,11 +292,13 @@ class VelocityAdsMediationAdapterTest {
 
     @Test
     fun `loadAdViewAd when SDK not initialized and no appKey delivers NOT_INITIALIZED`() {
-        // Given
+        // Given — a valid activity so the Activity guard is satisfied; missing app_id so
+        // ensureInitialized fails without an appKey to initSDK with.
         val listener = mock(MaxAdViewAdapterListener::class.java)
+        val activity = Robolectric.buildActivity(Activity::class.java).get()
 
         // When
-        adapter.loadAdViewAd(mockLoadParams(adUnitId = "valid-unit"), MaxAdFormat.BANNER, null, listener)
+        adapter.loadAdViewAd(mockLoadParams(adUnitId = "valid-unit"), MaxAdFormat.BANNER, activity, listener)
 
         // Then
         verify(listener).onAdViewAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)

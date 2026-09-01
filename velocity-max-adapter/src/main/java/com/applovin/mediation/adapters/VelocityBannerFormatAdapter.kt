@@ -30,6 +30,10 @@ internal class VelocityBannerFormatAdapter(
             listener.onAdViewAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
             return
         }
+        if (activity == null) {
+            listener.onAdViewAdLoadFailed(MaxAdapterError.MISSING_ACTIVITY)
+            return
+        }
 
         ctx.forwardPrivacySettings()
 

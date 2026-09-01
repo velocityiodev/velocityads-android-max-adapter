@@ -2,6 +2,7 @@ package com.applovin.mediation.adapters
 
 import android.app.Activity
 import android.util.Log
+import com.applovin.mediation.MaxReward
 import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
 import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
@@ -20,7 +21,7 @@ import io.velocityads.sdk.models.VelocityRewardedAdRequest
  */
 internal class VelocityRewardedFormatAdapter(
     private val ctx: FormatAdapterContext,
-    private val rewardSupplier: () -> com.applovin.mediation.MaxReward,
+    private val rewardSupplier: () -> MaxReward,
     private val configureReward: (MaxAdapterResponseParameters) -> Unit,
 ) {
     companion object {

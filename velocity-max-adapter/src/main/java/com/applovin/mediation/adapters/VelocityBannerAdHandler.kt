@@ -33,6 +33,13 @@ internal class VelocityBannerAdHandler {
     // by load() on the main thread — VelocityBannerAd.destroy() is safe to call from any thread.
     @Volatile private var bannerAd: VelocityBannerAd? = null
 
+    /**
+     * Loads a banner ad for [parameters] into a new [VelocityBannerAdView].
+     *
+     * [VelocityBannerFormatAdapter] validates [activity] and the ad unit ID before calling
+     * [com.applovin.mediation.adapters.FormatAdapterContext.ensureInitialized], so these
+     * guards are defense-in-depth for any caller that bypasses the format adapter.
+     */
     fun load(
         parameters: MaxAdapterResponseParameters,
         adFormat: MaxAdFormat,
