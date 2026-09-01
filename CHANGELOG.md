@@ -10,7 +10,6 @@ _2026-08-30_
 * Supported ad formats:
   * **Interstitial** — full-screen interstitial ads (video, HTML/MRAID, static image).
   * **Rewarded** — full-screen rewarded ads with publisher-configurable reward currency and amount via `configureReward()`.
-  * **Native** — native ads supplying headline, body, call-to-action, icon, and main image assets for custom publisher rendering; media image is downloaded using MAX's caching executor.
   * **Banner / MREC** — inline banner ads; standard fixed sizes and adaptive banner width are supported.
 * The Velocity app key is read from the **App ID** field of the MAX dashboard ad-unit entry and delivered via `serverParameters.getString("app_id")`.
 * Lazy SDK initialization: if the app key is absent at MAX network-level `initialize`, the adapter initializes the Velocity SDK on the first load that carries a valid app key. Concurrent init calls are coalesced so only one `initSDK` attempt is in flight at a time.

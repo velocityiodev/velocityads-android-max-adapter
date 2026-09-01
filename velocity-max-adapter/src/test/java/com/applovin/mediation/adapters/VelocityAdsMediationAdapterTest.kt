@@ -6,7 +6,6 @@ import com.applovin.mediation.adapter.MaxAdapter
 import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.listeners.MaxAdViewAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
-import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
 import com.applovin.mediation.adapter.parameters.MaxAdapterInitializationParameters
 import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
@@ -237,30 +236,6 @@ class VelocityAdsMediationAdapterTest {
     }
 
     @Test
-    fun `loadNativeAd with null adUnitId delivers INVALID_CONFIGURATION`() {
-        // Given
-        val listener = mock(MaxNativeAdAdapterListener::class.java)
-
-        // When
-        adapter.loadNativeAd(mockLoadParams(adUnitId = null), null, listener)
-
-        // Then
-        verify(listener).onNativeAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
-    }
-
-    @Test
-    fun `loadNativeAd with blank adUnitId delivers INVALID_CONFIGURATION`() {
-        // Given
-        val listener = mock(MaxNativeAdAdapterListener::class.java)
-
-        // When
-        adapter.loadNativeAd(mockLoadParams(adUnitId = ""), null, listener)
-
-        // Then
-        verify(listener).onNativeAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
-    }
-
-    @Test
     fun `loadAdViewAd with null adUnitId delivers INVALID_CONFIGURATION`() {
         // Given
         val listener = mock(MaxAdViewAdapterListener::class.java)
@@ -314,18 +289,6 @@ class VelocityAdsMediationAdapterTest {
 
         // Then
         verify(listener).onRewardedAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
-    }
-
-    @Test
-    fun `loadNativeAd when SDK not initialized and no appKey delivers NOT_INITIALIZED`() {
-        // Given
-        val listener = mock(MaxNativeAdAdapterListener::class.java)
-
-        // When
-        adapter.loadNativeAd(mockLoadParams(adUnitId = "valid-unit"), null, listener)
-
-        // Then
-        verify(listener).onNativeAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
     }
 
     @Test

@@ -5,18 +5,15 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
-import android.widget.ImageView
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdapter
 import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.MaxAdViewAdapter
 import com.applovin.mediation.adapter.MaxInterstitialAdapter
-import com.applovin.mediation.adapter.MaxNativeAdAdapter
 import com.applovin.mediation.adapter.MaxRewardedAdapter
 import com.applovin.sdk.AppLovinPrivacySettings
 import com.applovin.mediation.adapter.listeners.MaxAdViewAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
-import com.applovin.mediation.adapter.listeners.MaxNativeAdAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
 import com.applovin.mediation.adapter.parameters.MaxAdapterInitializationParameters
 import com.applovin.mediation.adapter.parameters.MaxAdapterParameters
@@ -31,11 +28,8 @@ import io.velocityads.sdk.models.VelocityAdsErrorCode
 import io.velocityads.sdk.models.VelocityAdsInitRequest
 import io.velocityads.sdk.models.VelocityInterstitialAd
 import io.velocityads.sdk.models.VelocityInterstitialAdRequest
-import io.velocityads.sdk.models.VelocityNativeAd
-import io.velocityads.sdk.models.VelocityNativeAdRequest
 import io.velocityads.sdk.models.VelocityRewardedAd
 import io.velocityads.sdk.models.VelocityRewardedAdRequest
-import java.util.concurrent.TimeUnit
 
 /**
  * AppLovin MAX custom-network adapter for the Velocity Ads SDK.
@@ -47,13 +41,11 @@ class VelocityAdsMediationAdapter(
 ) : MediationAdapterBase(sdk),
     MaxInterstitialAdapter,
     MaxRewardedAdapter,
-    MaxNativeAdAdapter,
     MaxAdViewAdapter {
     companion object {
         private const val TAG = "VelocityAdsAdapter"
         private const val INIT_POLL_INTERVAL_MS = 200L
         private const val INIT_POLL_TIMEOUT_MS = 5_000L
-        private const val MEDIA_IMAGE_TIMEOUT_SECONDS = 10L
 
         /**
          * Shared across adapter instances (MAX may create one per ad unit) because
@@ -101,14 +93,10 @@ class VelocityAdsMediationAdapter(
 
     private var rewardedAd: VelocityRewardedAd? = null
 
-    private var nativeAd: VelocityNativeAd? = null
-
     // ---- handler holders (needed to wire the show-time listener) ----
     private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
 
     private var rewardedAdHandler: VelocityRewardedAdHandler? = null
-
-    private var nativeAdHandler: VelocityNativeAdHandler? = null
 
     private var bannerAdHandler: VelocityBannerAdHandler? = null
 
@@ -345,10 +333,6 @@ class VelocityAdsMediationAdapter(
         rewardedAd = null
         rewardedAdHandler = null
 
-        nativeAd?.destroy()
-        nativeAd = null
-        nativeAdHandler = null
-
         bannerAdHandler?.destroy()
         bannerAdHandler = null
     }
@@ -485,64 +469,6 @@ class VelocityAdsMediationAdapter(
         handler.attachShowListener(listener)
         ad.show(activity)
     }
-
-    // =========================================================================
-    // MaxNativeAdAdapter
-    // =========================================================================
-
-    override fun loadNativeAd(
-        parameters: MaxAdapterResponseParameters,
-        activity: Activity?,
-        listener: MaxNativeAdAdapterListener,
-    ) {
-        val adUnitId = parameters.getThirdPartyAdPlacementId()
-        if (adUnitId.isNullOrBlank()) {
-            listener.onNativeAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
-            return
-        }
-
-        forwardPrivacySettings()
-
-        ensureInitialized(parameters) { initialized ->
-            if (isDestroyed) return@ensureInitialized
-            if (!initialized) {
-                listener.onNativeAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
-                return@ensureInitialized
-            }
-
-            nativeAd?.destroy()
-            nativeAd = null
-
-            val adRequest = VelocityNativeAdRequest.Builder(adUnitId).build()
-            val handler = VelocityNativeAdHandler(listener, nativeMediaViewLoader())
-            nativeAdHandler = handler
-            val ad = VelocityNativeAd(adRequest)
-            nativeAd = ad
-            ad.load(handler)
-        }
-    }
-
-    /**
-     * Builds a [NativeMediaViewLoader] backed by MAX's own image helpers:
-     * [createDrawableFuture] downloads on [getCachingExecutorService], and the resulting
-     * [ImageView] is delivered on the main thread as required by the loader contract.
-     */
-    private fun nativeMediaViewLoader(): NativeMediaViewLoader =
-        NativeMediaViewLoader { url, completion ->
-            cachingExecutorService.execute {
-                val drawable =
-                    try {
-                        createDrawableFuture(url, applicationContext.resources)
-                            .get(MEDIA_IMAGE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to download native ad media image: $url", e)
-                        null
-                    }
-                Handler(Looper.getMainLooper()).post {
-                    completion(drawable?.let { ImageView(applicationContext).apply { setImageDrawable(it) } })
-                }
-            }
-        }
 
     // =========================================================================
     // MaxAdViewAdapter
