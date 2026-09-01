@@ -19,7 +19,6 @@ import io.velocityads.sdk.models.VelocityBannerAdSize
  * manages the [VelocityBannerAd] / [VelocityBannerAdView] lifecycle.
  */
 internal class VelocityBannerAdHandler {
-
     companion object {
         private const val TAG = "VelocityAdsAdapter"
 

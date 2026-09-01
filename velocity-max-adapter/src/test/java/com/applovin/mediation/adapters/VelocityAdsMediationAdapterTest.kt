@@ -38,7 +38,6 @@ import kotlin.test.assertNull
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class VelocityAdsMediationAdapterTest {
-
     private lateinit var sdk: AppLovinSdk
     private lateinit var adapter: VelocityAdsMediationAdapter
 
@@ -91,9 +90,7 @@ class VelocityAdsMediationAdapterTest {
 
     // ========== Helpers ==========
 
-    private fun mockInitParams(
-        appKey: String? = "test-app-key",
-    ): MaxAdapterInitializationParameters {
+    private fun mockInitParams(appKey: String? = "test-app-key"): MaxAdapterInitializationParameters {
         val params = mock(MaxAdapterInitializationParameters::class.java)
         val serverBundle = Bundle()
         if (appKey != null) serverBundle.putString("app_id", appKey)
@@ -365,9 +362,7 @@ class VelocityAdsMediationAdapterTest {
 
     // ========== extractAppKey ==========
 
-    private fun paramsWithBundles(
-        serverParams: Bundle?,
-    ): MaxAdapterResponseParameters {
+    private fun paramsWithBundles(serverParams: Bundle?): MaxAdapterResponseParameters {
         val params = mock(MaxAdapterResponseParameters::class.java)
         `when`(params.getCustomParameters()).thenReturn(Bundle())
         `when`(params.getServerParameters()).thenReturn(serverParams)

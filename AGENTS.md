@@ -46,14 +46,23 @@ This library is the official AppLovin MAX **custom-network adapter** that bridge
 
 ```
 velocityads-android-max-adapter/
-├── velocity-max-adapter/          # The adapter library module (published AAR)
+├── velocity-max-adapter/                       # The adapter library module (published AAR)
 │   └── src/main/java/com/applovin/mediation/adapters/
-│       └── VelocityAdsMediationAdapter.kt   # Main adapter class registered in the MAX dashboard
-├── build.gradle                   # Root build: Nexus publish plugin + ktlint plugin
-├── gradle.properties              # VERSION_NAME, GROUP, ARTIFACT_ID
+│       ├── VelocityAdsMediationAdapter.kt      # Core adapter: init, destroy, FormatAdapterContext impl
+│       ├── FormatAdapterContext.kt             # Interface injected into format adapters
+│       ├── VelocityInterstitialFormatAdapter.kt
+│       ├── VelocityRewardedFormatAdapter.kt
+│       ├── VelocityBannerFormatAdapter.kt
+│       ├── VelocityInterstitialAdHandler.kt    # Translates Velocity callbacks → MAX interstitial
+│       ├── VelocityRewardedAdHandler.kt        # Translates Velocity callbacks → MAX rewarded
+│       ├── VelocityBannerAdHandler.kt          # Manages banner load + translates callbacks
+│       ├── VelocityAdsErrorMapper.kt           # Maps VelocityAdsError → MaxAdapterError
+│       └── InitCoalescer.kt                    # Coalesces concurrent init attempts
+├── build.gradle                                # Root build: Nexus publish plugin + ktlint plugin
+├── gradle.properties                           # VERSION_NAME, GROUP, ARTIFACT_ID
 └── .github/workflows/
-    ├── tests.yml                  # CI: ktlint + unit tests on PR/push to main
-    └── release.yml                # Release: validate → build+publish → tag+GitHub Release
+    ├── tests.yml                               # CI: ktlint + unit tests on PR/push to main
+    └── release.yml                             # Release: validate → build+publish → tag+GitHub Release
 ```
 
 ---

@@ -6,12 +6,10 @@ import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import com.applovin.mediation.MaxAdFormat
-import com.applovin.mediation.adapter.MaxAdapter
-import com.applovin.mediation.adapter.MaxAdapterError
 import com.applovin.mediation.adapter.MaxAdViewAdapter
+import com.applovin.mediation.adapter.MaxAdapter
 import com.applovin.mediation.adapter.MaxInterstitialAdapter
 import com.applovin.mediation.adapter.MaxRewardedAdapter
-import com.applovin.sdk.AppLovinPrivacySettings
 import com.applovin.mediation.adapter.listeners.MaxAdViewAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxInterstitialAdapterListener
 import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
@@ -19,6 +17,7 @@ import com.applovin.mediation.adapter.parameters.MaxAdapterInitializationParamet
 import com.applovin.mediation.adapter.parameters.MaxAdapterParameters
 import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
 import com.applovin.mediation.adapters.velocity.BuildConfig
+import com.applovin.sdk.AppLovinPrivacySettings
 import com.applovin.sdk.AppLovinSdk
 import io.velocityads.sdk.VelocityAds
 import io.velocityads.sdk.VelocityAdsMediationBridge
@@ -26,10 +25,6 @@ import io.velocityads.sdk.listeners.VelocityAdsInitListener
 import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
 import io.velocityads.sdk.models.VelocityAdsInitRequest
-import io.velocityads.sdk.models.VelocityInterstitialAd
-import io.velocityads.sdk.models.VelocityInterstitialAdRequest
-import io.velocityads.sdk.models.VelocityRewardedAd
-import io.velocityads.sdk.models.VelocityRewardedAdRequest
 
 /**
  * AppLovin MAX custom-network adapter for the Velocity Ads SDK.
@@ -41,7 +36,8 @@ class VelocityAdsMediationAdapter(
 ) : MediationAdapterBase(sdk),
     MaxInterstitialAdapter,
     MaxRewardedAdapter,
-    MaxAdViewAdapter {
+    MaxAdViewAdapter,
+    FormatAdapterContext {
     companion object {
         private const val TAG = "VelocityAdsAdapter"
         private const val INIT_POLL_INTERVAL_MS = 200L
@@ -86,26 +82,30 @@ class VelocityAdsMediationAdapter(
         }
     }
 
-    // ---- ad object holders ----
-    // All reads and writes happen on the main thread (MAX entry points are main-thread-confined,
-    // and the ensureInitialized/load continuations are dispatched there via runOnMainNow).
-    private var interstitialAd: VelocityInterstitialAd? = null
-
-    private var rewardedAd: VelocityRewardedAd? = null
-
-    // ---- handler holders (needed to wire the show-time listener) ----
-    private var interstitialAdHandler: VelocityInterstitialAdHandler? = null
-
-    private var rewardedAdHandler: VelocityRewardedAdHandler? = null
-
-    private var bannerAdHandler: VelocityBannerAdHandler? = null
-
     /**
-     * Set by [onDestroy]. Load continuations parked in the shared [initCoalescer] check this
-     * before creating ad objects, so an init that completes after MAX has destroyed this
-     * adapter instance cannot spawn orphaned ads that nothing will ever destroy.
+     * Set by [onDestroy]. Format adapters check this before creating ad objects so orphaned
+     * operations from a completed [ensureInitialized] cannot spawn ads that will never be
+     * destroyed.
      */
-    @Volatile private var isDestroyed = false
+    @Volatile override var isDestroyed = false
+        private set
+
+    // ---- format adapters ----
+
+    private val interstitialFormatAdapter: VelocityInterstitialFormatAdapter
+    private val rewardedFormatAdapter: VelocityRewardedFormatAdapter
+    private val bannerFormatAdapter: VelocityBannerFormatAdapter
+
+    init {
+        interstitialFormatAdapter = VelocityInterstitialFormatAdapter(this)
+        rewardedFormatAdapter =
+            VelocityRewardedFormatAdapter(
+                ctx = this,
+                rewardSupplier = ::getReward,
+                configureReward = ::configureReward,
+            )
+        bannerFormatAdapter = VelocityBannerFormatAdapter(this)
+    }
 
     // =========================================================================
     // MediationAdapterBase
@@ -239,7 +239,7 @@ class VelocityAdsMediationAdapter(
      * later when the SDK could now initialize successfully — the Velocity SDK
      * explicitly permits re-init from its FAILED state.
      */
-    private fun ensureInitialized(
+    override fun ensureInitialized(
         parameters: MaxAdapterResponseParameters,
         onReady: (Boolean) -> Unit,
     ) {
@@ -324,17 +324,9 @@ class VelocityAdsMediationAdapter(
 
     override fun onDestroy() {
         isDestroyed = true
-
-        interstitialAd?.destroy()
-        interstitialAd = null
-        interstitialAdHandler = null
-
-        rewardedAd?.destroy()
-        rewardedAd = null
-        rewardedAdHandler = null
-
-        bannerAdHandler?.destroy()
-        bannerAdHandler = null
+        interstitialFormatAdapter.destroy()
+        rewardedFormatAdapter.destroy()
+        bannerFormatAdapter.destroy()
     }
 
     // =========================================================================
@@ -345,61 +337,13 @@ class VelocityAdsMediationAdapter(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
         listener: MaxInterstitialAdapterListener,
-    ) {
-        val adUnitId = parameters.getThirdPartyAdPlacementId()
-        if (adUnitId.isNullOrBlank()) {
-            listener.onInterstitialAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
-            return
-        }
-
-        forwardPrivacySettings()
-
-        ensureInitialized(parameters) { initialized ->
-            if (isDestroyed) return@ensureInitialized
-            if (!initialized) {
-                listener.onInterstitialAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
-                return@ensureInitialized
-            }
-
-            interstitialAd?.destroy()
-            interstitialAd = null
-
-            val adRequest = VelocityInterstitialAdRequest.Builder(adUnitId).build()
-            val ad = VelocityInterstitialAd(adRequest)
-            interstitialAd = ad
-            val handler =
-                VelocityInterstitialAdHandler(
-                    listener,
-                    onDismissed = { if (interstitialAd === ad) interstitialAd = null },
-                )
-            interstitialAdHandler = handler
-            ad.load(handler)
-        }
-    }
+    ) = interstitialFormatAdapter.load(parameters, activity, listener)
 
     override fun showInterstitialAd(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
         listener: MaxInterstitialAdapterListener,
-    ) {
-        val ad = interstitialAd
-        if (ad == null || !ad.isReady) {
-            listener.onInterstitialAdDisplayFailed(MaxAdapterError.AD_NOT_READY)
-            return
-        }
-        if (activity == null) {
-            Log.e(TAG, "Cannot show interstitial: Activity is null")
-            listener.onInterstitialAdDisplayFailed(MaxAdapterError.MISSING_ACTIVITY)
-            return
-        }
-        val handler = interstitialAdHandler
-        if (handler == null) {
-            listener.onInterstitialAdDisplayFailed(MaxAdapterError.INVALID_LOAD_STATE)
-            return
-        }
-        handler.attachShowListener(listener)
-        ad.show(activity)
-    }
+    ) = interstitialFormatAdapter.show(parameters, activity, listener)
 
     // =========================================================================
     // MaxRewardedAdapter
@@ -409,66 +353,13 @@ class VelocityAdsMediationAdapter(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
         listener: MaxRewardedAdapterListener,
-    ) {
-        val adUnitId = parameters.getThirdPartyAdPlacementId()
-        if (adUnitId.isNullOrBlank()) {
-            listener.onRewardedAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
-            return
-        }
-
-        forwardPrivacySettings()
-
-        // Capture the publisher's dashboard-configured reward (amount/currency and the
-        // always-reward override) so onUserRewarded can deliver it via getReward().
-        configureReward(parameters)
-
-        ensureInitialized(parameters) { initialized ->
-            if (isDestroyed) return@ensureInitialized
-            if (!initialized) {
-                listener.onRewardedAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
-                return@ensureInitialized
-            }
-
-            rewardedAd?.destroy()
-            rewardedAd = null
-
-            val adRequest = VelocityRewardedAdRequest.Builder(adUnitId).build()
-            val ad = VelocityRewardedAd(adRequest)
-            rewardedAd = ad
-            val handler =
-                VelocityRewardedAdHandler(
-                    listener,
-                    rewardSupplier = ::getReward,
-                    onDismissed = { if (rewardedAd === ad) rewardedAd = null },
-                )
-            rewardedAdHandler = handler
-            ad.load(handler)
-        }
-    }
+    ) = rewardedFormatAdapter.load(parameters, activity, listener)
 
     override fun showRewardedAd(
         parameters: MaxAdapterResponseParameters,
         activity: Activity?,
         listener: MaxRewardedAdapterListener,
-    ) {
-        val ad = rewardedAd
-        if (ad == null || !ad.isReady) {
-            listener.onRewardedAdDisplayFailed(MaxAdapterError.AD_NOT_READY)
-            return
-        }
-        if (activity == null) {
-            Log.e(TAG, "Cannot show rewarded ad: Activity is null")
-            listener.onRewardedAdDisplayFailed(MaxAdapterError.MISSING_ACTIVITY)
-            return
-        }
-        val handler = rewardedAdHandler
-        if (handler == null) {
-            listener.onRewardedAdDisplayFailed(MaxAdapterError.INVALID_LOAD_STATE)
-            return
-        }
-        handler.attachShowListener(listener)
-        ad.show(activity)
-    }
+    ) = rewardedFormatAdapter.show(parameters, activity, listener)
 
     // =========================================================================
     // MaxAdViewAdapter
@@ -479,28 +370,7 @@ class VelocityAdsMediationAdapter(
         adFormat: MaxAdFormat,
         activity: Activity?,
         listener: MaxAdViewAdapterListener,
-    ) {
-        val adUnitId = parameters.getThirdPartyAdPlacementId()
-        if (adUnitId.isNullOrBlank()) {
-            listener.onAdViewAdLoadFailed(MaxAdapterError.INVALID_CONFIGURATION)
-            return
-        }
-
-        forwardPrivacySettings()
-
-        ensureInitialized(parameters) { initialized ->
-            if (isDestroyed) return@ensureInitialized
-            if (!initialized) {
-                listener.onAdViewAdLoadFailed(MaxAdapterError.NOT_INITIALIZED)
-                return@ensureInitialized
-            }
-
-            bannerAdHandler?.destroy()
-            val handler = VelocityBannerAdHandler()
-            bannerAdHandler = handler
-            handler.load(parameters, adFormat, activity, listener)
-        }
-    }
+    ) = bannerFormatAdapter.load(parameters, adFormat, activity, listener)
 
     // =========================================================================
     // Privacy helpers
@@ -520,7 +390,7 @@ class VelocityAdsMediationAdapter(
      * Called at [initialize] (before SDK boots) and on every ad load, so mid-session
      * CMP changes propagate on the next request.
      */
-    private fun forwardPrivacySettings() {
+    override fun forwardPrivacySettings() {
         try {
             val ctx = applicationContext ?: return
             if (AppLovinPrivacySettings.isUserConsentSet(ctx)) {
