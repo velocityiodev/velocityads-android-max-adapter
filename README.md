@@ -151,56 +151,6 @@ If the SDK is already initialized (e.g. you initialize it directly in your app),
 
 ---
 
-## Multi-mediation naming conventions
-
-Velocity Ads ships adapters for several mediation platforms (MAX, GAM, LevelPlay, and more). The naming scheme below is **fixed** so adding a new platform never requires renaming existing artifacts:
-
-### Two adapter families (never collide)
-
-| Family | Purpose | When |
-|---|---|---|
-| **Outbound** | Velocity Ads SDK embedded into another platform's mediation | Now (MAX, GAM, LevelPlay…) |
-| **Inbound** (reserved) | Other networks embedded into a future Velocity Ads mediation platform | Future |
-
-### Android Maven coordinates
-
-| Family | Group ID | Artifact ID pattern | Example |
-|---|---|---|---|
-| Outbound | `io.velocity` | `<mediation>-mediation` | `io.velocity:max-mediation` |
-| Inbound (reserved) | `io.velocity.mediation` | `<network>-adapter` | `io.velocity.mediation:meta-adapter` |
-
-The `io.velocity` namespace on Maven Central automatically covers `io.velocity.mediation` — no new registration is needed for inbound adapters.
-
-### iOS pod / SPM names
-
-Outbound adapters use the class name registered in the mediation dashboard as the pod/package name:
-
-| Adapter | Pod / SPM | Podspec `s.version` | Git tag (SPM) |
-|---|---|---|---|
-| MAX | `VelocityAdsMaxAdapter` | 4 segments (`0.10.0.0`) | 3 segments (`0.10.0`) |
-| GAM (future) | `VelocityAdsGamAdapter` | 4 segments | 3 segments |
-| LevelPlay (future) | `VelocityAdsLevelPlayAdapter` | 4 segments | 3 segments |
-
-### Version scheme
-
-All adapters use the **4-segment convention** (`<sdkMajor>.<sdkMinor>.<sdkPatch>.<adapterBuild>`) matching the MAX / GAM / LevelPlay adapter ecosystems. The 4th segment increments for adapter-only fixes that ship against the same SDK version.
-
-### Mediation name string
-
-Each adapter hard-codes a short, lowercase token via `VelocityAdsMediationBridge.setMediationInfo(name:…)`. This string is intentionally a free string owned by the adapter repo (not an SDK enum), so adding a new platform never requires an SDK release:
-
-| Adapter | Mediation name string |
-|---|---|
-| MAX | `"max"` |
-| GAM (future) | `"gam"` |
-| LevelPlay (future) | `"levelplay"` |
-
-### Repository names
-
-Repo names follow the code, not the artifact: `velocityads-{android,ios}-<mediation>-adapter`. The mediation token is the product name, not the company name (`max`, not `applovin`).
-
----
-
 ## Release process
 
 > **SDK-first requirement**: `io.velocity:ads-sdk:<version>` must be published to Maven Central before this adapter can be released. CI will fail until the matching SDK version ships.
