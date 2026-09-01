@@ -65,10 +65,9 @@ The adapter depends on `io.velocity:ads-sdk:0.10.0`, which must be available in 
 
 To build against a local Velocity SDK:
 
-1. Publish the SDK to your local Maven repository from the `velocityads-android-sdk-internal` repo:
+1. Publish the SDK to your local Maven repository from the Velocity Ads Android SDK repo:
 
    ```bash
-   cd ../velocityads-android-sdk-internal
    ./gradlew publishToMavenLocal
    ```
 
@@ -79,8 +78,6 @@ To build against a local Velocity SDK:
    ```
 
 **Release ordering**: Velocity Ads SDK `0.10.0` must be published to Maven Central before this adapter can be released or built in CI without the `velocityLocalMaven` escape hatch.
-
-If you are consuming a local Velocity SDK build from an app, add `mavenLocal()` **first** in your app's repositories block so Gradle picks it up before checking remote repositories.
 
 ---
 
@@ -131,7 +128,7 @@ At initialization the adapter reports the mediation environment to the Velocity 
 | Adapter version | This adapter's version (e.g. `0.10.0.0`) |
 | Mediation SDK version | The AppLovin SDK version (`AppLovinSdk.VERSION`) |
 
-The Velocity SDK attaches these values to every ad request (`mobileMetadata`) and every analytics event, so traffic can be sliced by mediation platform, adapter version, and AppLovin SDK version. Forwarding happens once per process — the values never change mid-session.
+The Velocity SDK attaches these values to every ad request and every analytics event, so traffic can be sliced by mediation platform, adapter version, and AppLovin SDK version. Forwarding happens once per process — the values never change mid-session.
 
 ---
 
