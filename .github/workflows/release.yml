@@ -256,11 +256,7 @@ jobs:
           # passphrase non-interactively, regardless of agent state.
           GPG_WRAPPER=$(mktemp)
           chmod +x "$GPG_WRAPPER"
-          cat > "$GPG_WRAPPER" <<'GPGWRAP'
-#!/bin/sh
-exec gpg --batch --yes --pinentry-mode loopback \
-  --passphrase "${GPG_PASSPHRASE:-}" "$@"
-GPGWRAP
+          printf '#!/bin/sh\nexec gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE:-}" "$@"\n' > "$GPG_WRAPPER"
 
           git config user.name  "${GPG_TAGGER_NAME}"
           git config user.email "${GPG_TAGGER_EMAIL}"
