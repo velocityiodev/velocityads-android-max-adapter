@@ -1,0 +1,54 @@
+name: Test GPG Secrets
+on:
+  workflow_dispatch:
+jobs:
+  test-gpg:
+    name: Verify GPG secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install gnupg
+        run: sudo apt-get install -y gnupg
+
+      - name: Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          GNUPGHOME=$(mktemp -d)
+          chmod 700 "$GNUPGHOME"
+          echo "pinentry-mode loopback" >> "$GNUPGHOME/gpg.conf"
+          echo "$GPG_PRIVATE_KEY" | GNUPGHOME="$GNUPGHOME" gpg --batch \
+            --passphrase "${GPG_PASSPHRASE:-}" --import
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "✅ GPG_PRIVATE_KEY imported"
+
+      - name: Verify key fingerprint matches GPG_SIGNING_KEY_ID
+        env:
+          GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+        run: |
+          GNUPGHOME="$GNUPGHOME" gpg --list-secret-keys "$GPG_SIGNING_KEY_ID"
+          echo "✅ GPG_SIGNING_KEY_ID matches an imported key"
+
+      - name: Verify tagger identity
+        env:
+          GPG_TAGGER_NAME: ${{ secrets.GPG_TAGGER_NAME }}
+          GPG_TAGGER_EMAIL: ${{ secrets.GPG_TAGGER_EMAIL }}
+          GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+        run: |
+          UID_LINE=$(GNUPGHOME="$GNUPGHOME" gpg --list-secret-keys "$GPG_SIGNING_KEY_ID" | grep uid)
+          echo "Key uid: $UID_LINE"
+          echo "$UID_LINE" | grep -q "$GPG_TAGGER_EMAIL" \
+            && echo "✅ GPG_TAGGER_EMAIL found in key uid" \
+            || echo "⚠️  GPG_TAGGER_EMAIL not found in key uid — check the value"
+
+      - name: Sign a test string
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+        run: |
+          echo "test payload" | GNUPGHOME="$GNUPGHOME" gpg --batch \
+            --passphrase "${GPG_PASSPHRASE:-}" \
+            --pinentry-mode loopback \
+            --local-user "$GPG_SIGNING_KEY_ID" \
+            --clearsign
+          echo "✅ Signing successful — all GPG secrets are correct"
