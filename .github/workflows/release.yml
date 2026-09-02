@@ -249,16 +249,23 @@ jobs:
           GPG_TAGGER_NAME: ${{ secrets.GPG_TAGGER_NAME }}
           GPG_TAGGER_EMAIL: ${{ secrets.GPG_TAGGER_EMAIL }}
           GPG_SIGNING_KEY_ID: ${{ secrets.GPG_SIGNING_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           set -euo pipefail
           git config user.name  "${GPG_TAGGER_NAME}"
           git config user.email "${GPG_TAGGER_EMAIL}"
           git config user.signingkey "${GPG_SIGNING_KEY_ID}"
           git config tag.gpgsign true
+          # Pass passphrase non-interactively so signing works in a headless runner.
+          git config gpg.program "gpg"
+          export GPG_TTY=$(tty 2>/dev/null || true)
           TAG="${VERSION}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "⚠️ Tag $TAG already exists — skipping tag creation"
           else
+            echo "${GPG_PASSPHRASE:-}" | gpg --batch --yes --passphrase-fd 0 \
+              --pinentry-mode loopback --local-user "${GPG_SIGNING_KEY_ID}" \
+              --status-fd 2 2>/dev/null || true
             git tag -s "$TAG" -m "$TAG"
             git push origin "$TAG"
           fi
