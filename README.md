@@ -106,14 +106,14 @@ For each placement you want Velocity Ads to fill:
 
 ## Privacy & Consent
 
-The adapter automatically forwards MAX's consent signals to the Velocity SDK before every ad request:
+The adapter automatically forwards the device's AppLovin privacy state to the Velocity SDK before every ad request. It reads directly from `AppLovinPrivacySettings` — the authoritative Android source that the publisher (or their CMP) sets — rather than from per-request MAX adapter parameters:
 
-| MAX signal | Velocity Ads API |
+| AppLovin privacy source | Velocity Ads API |
 |---|---|
-| `parameters.hasUserConsent` | `VelocityAds.setConsent(Boolean)` – `true` = consent granted (GDPR) |
-| `parameters.isDoNotSell` | `VelocityAds.setDoNotSell(Boolean)` – `true` = opt-out (CCPA) |
+| `AppLovinPrivacySettings.hasUserConsent(context)` (forwarded only when `isUserConsentSet` is `true`) | `VelocityAds.setConsent(Boolean)` – `true` = consent granted (GDPR) |
+| `AppLovinPrivacySettings.isDoNotSell(context)` (forwarded only when `isDoNotSellSet` is `true`) | `VelocityAds.setDoNotSell(Boolean)` – `true` = opt-out (CCPA) |
 
-No additional integration is required in your app. If a signal is `null` (not set), it is not forwarded and the Velocity SDK retains its previous value.
+No additional integration is required in your app beyond the standard AppLovin privacy setup. A signal that has not been set is not forwarded, and the Velocity SDK retains its previous value. Privacy is forwarded at initialization (before the SDK boots) and on every ad load, so mid-session consent changes propagate on the next request.
 
 ---
 

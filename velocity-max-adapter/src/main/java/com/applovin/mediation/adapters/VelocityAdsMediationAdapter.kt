@@ -191,31 +191,49 @@ class VelocityAdsMediationAdapter(
     ) {
         val handler = Handler(Looper.getMainLooper())
         val deadlineUptimeMs = SystemClock.uptimeMillis() + INIT_POLL_TIMEOUT_MS
+        // A VelocityAdsInitListener could in principle deliver more than one terminal
+        // callback (success then a late failure, or a repeated failure). Because
+        // onResult feeds initCoalescer.complete(), a second invocation would reset the
+        // coalescer's claim and could fire a *newer* attempt's parked handler with this
+        // stale outcome. Guard so onResult runs exactly once for this await.
+        var settled = false
+        val settle: (Boolean) -> Unit = { initialized ->
+            if (!settled) {
+                settled = true
+                onResult(initialized)
+            }
+        }
         val attempt =
             object : Runnable {
                 override fun run() {
+                    if (settled) {
+                        return
+                    }
                     if (VelocityAds.isInitialized()) {
-                        onResult(true)
+                        settle(true)
                         return
                     }
                     if (SystemClock.uptimeMillis() >= deadlineUptimeMs) {
-                        onResult(false)
+                        settle(false)
                         return
                     }
                     val reattempt = this
                     val retryListener =
                         object : VelocityAdsInitListener {
                             override fun onInitSuccess() {
-                                onResult(true)
+                                settle(true)
                             }
 
                             override fun onInitFailure(error: VelocityAdsError) {
+                                if (settled) {
+                                    return
+                                }
                                 if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
                                     // Host init still in flight — check again shortly.
                                     handler.postDelayed(reattempt, INIT_POLL_INTERVAL_MS)
                                 } else {
                                     Log.w(TAG, "Velocity Ads re-init after host init failed [${error.code}]: ${error.message}")
-                                    onResult(false)
+                                    settle(false)
                                 }
                             }
                         }
@@ -224,7 +242,7 @@ class VelocityAdsMediationAdapter(
                         VelocityAds.initSDK(getApplicationContext(), initRequest, retryListener)
                     } catch (t: Throwable) {
                         Log.e(TAG, "Velocity Ads initSDK threw unexpectedly during re-init", t)
-                        onResult(false)
+                        settle(false)
                     }
                 }
             }

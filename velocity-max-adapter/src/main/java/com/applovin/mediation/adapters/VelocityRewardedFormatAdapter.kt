@@ -65,7 +65,15 @@ internal class VelocityRewardedFormatAdapter(
                 VelocityRewardedAdHandler(
                     listener,
                     rewardSupplier = rewardSupplier,
-                    onDismissed = { if (ad === newAd) ad = null },
+                    onDismissed = {
+                        // Clear the ad and its handler together so a dismissed ad does not
+                        // strand a stale handler reference on this adapter. Guarded on
+                        // identity so a newer load cycle's state is never clobbered.
+                        if (ad === newAd) {
+                            ad = null
+                            handler = null
+                        }
+                    },
                 )
             handler = newHandler
             newAd.load(newHandler)
