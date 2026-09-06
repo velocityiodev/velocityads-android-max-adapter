@@ -98,12 +98,7 @@ The version follows the MAX 4-segment convention: `<sdkMajor>.<sdkMinor>.<sdkPat
 
 # Auto-fix ktlint violations
 ./gradlew :velocity-max-adapter:ktlintFormat
-
-# Build against a local Velocity SDK (SDK not yet on Maven Central)
-./gradlew :velocity-max-adapter:assembleRelease -PvelocityLocalMaven=true
 ```
-
-**SDK-first requirement**: `io.velocity:ads-sdk:<version>` must be published to Maven Central before CI can build without the `velocityLocalMaven` flag. Keep this in mind when working on a branch that targets an unreleased SDK version.
 
 ---
 

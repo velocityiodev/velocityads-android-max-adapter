@@ -27,9 +27,7 @@ This library is the official AppLovin MAX **custom-network adapter** for the Vel
 
 ## Installation
 
-### 1. Add the adapter dependency
-
-Once published to Maven Central, add the adapter to your app's `build.gradle`:
+Add the adapter to your app's `build.gradle`:
 
 ```groovy
 dependencies {
@@ -57,26 +55,6 @@ dependencyResolutionManagement {
     }
 }
 ```
-
-### 2. Local / development builds
-
-The adapter depends on `io.velocity:ads-sdk:0.10.0`, which must be available in a repository to build this project. Until that SDK version reaches Maven Central, fresh clones cannot build (or be released / CI-built) without a local copy of the SDK.
-
-To build against a local Velocity SDK:
-
-1. Publish the SDK to your local Maven repository from the Velocity Ads Android SDK repo:
-
-   ```bash
-   ./gradlew publishToMavenLocal
-   ```
-
-2. Build this adapter with the `velocityLocalMaven` property, which adds `mavenLocal()` to the repository list (see `settings.gradle`):
-
-   ```bash
-   ./gradlew :velocity-max-adapter:assembleRelease -PvelocityLocalMaven=true
-   ```
-
-**Release ordering**: Velocity Ads SDK `0.10.0` must be published to Maven Central before this adapter can be released or built in CI without the `velocityLocalMaven` escape hatch.
 
 ---
 
