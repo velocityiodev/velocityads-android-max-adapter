@@ -140,7 +140,6 @@ jobs:
           missing=""
           [ -z "$SIGNING_KEY_ID" ]                && missing="$missing SIGNING_KEY_ID"
           [ -z "$SIGNING_KEY" ]                   && missing="$missing SIGNING_KEY"
-          [ -z "$SIGNING_PASSWORD" ]              && missing="$missing SIGNING_PASSWORD"
           [ -z "$CENTRAL_PORTAL_TOKEN_USER" ]     && missing="$missing CENTRAL_PORTAL_TOKEN_USER"
           [ -z "$CENTRAL_PORTAL_TOKEN_PASSWORD" ] && missing="$missing CENTRAL_PORTAL_TOKEN_PASSWORD"
           if [ "$DRY_RUN" != "true" ]; then
@@ -154,8 +153,12 @@ jobs:
             echo "   Set them in Settings → Secrets and variables → Actions"
             exit 1
           fi
+          # Empty is valid when the in-memory Maven signing key / tag key has no passphrase.
+          if [ -z "${SIGNING_PASSWORD:-}" ]; then
+            echo "⚠️ SIGNING_PASSWORD is empty — OK only if SIGNING_KEY has no passphrase"
+          fi
           if [ "$DRY_RUN" != "true" ] && [ -z "${GPG_PASSPHRASE:-}" ]; then
-            echo "⚠️ GPG_PASSPHRASE is empty — OK only if the signing key has no passphrase"
+            echo "⚠️ GPG_PASSPHRASE is empty — OK only if the tagging key has no passphrase"
           fi
           echo "✅ All required secrets present"
         env:

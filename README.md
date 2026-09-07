@@ -140,7 +140,7 @@ Set the following secrets at the **`velocityiodev` org level** (shared automatic
 |---|---|
 | `SIGNING_KEY_ID` | Short GPG key ID for Maven artifact signing |
 | `SIGNING_KEY` | GPG private key for Maven artifact signing (armored, base64) |
-| `SIGNING_PASSWORD` | Passphrase for `SIGNING_KEY` |
+| `SIGNING_PASSWORD` | Passphrase for `SIGNING_KEY` (may be empty if the key has no passphrase) |
 | `CENTRAL_PORTAL_TOKEN_USER` | Maven Central Portal user token (username half) |
 | `CENTRAL_PORTAL_TOKEN_PASSWORD` | Maven Central Portal user token (password half) |
 | `GPG_PRIVATE_KEY` | GPG private key for git tag signing (armored) |
