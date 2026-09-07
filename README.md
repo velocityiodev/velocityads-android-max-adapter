@@ -96,20 +96,6 @@ No additional integration is required in your app beyond the standard AppLovin p
 
 ---
 
-## Mediation environment reporting
-
-At initialization the adapter reports the mediation environment to the Velocity SDK via `VelocityAdsMediationBridge.setMediationInfo(name, adapterVersion, sdkVersion)`:
-
-| Field | Value |
-|---|---|
-| Mediation name | `"max"` |
-| Adapter version | This adapter's version (e.g. `0.10.0.0`) |
-| Mediation SDK version | The AppLovin SDK version (`AppLovinSdk.VERSION`) |
-
-The Velocity SDK attaches these values to every ad request and every analytics event, so traffic can be sliced by mediation platform, adapter version, and AppLovin SDK version. Forwarding happens once per process — the values never change mid-session.
-
----
-
 ## SDK Initialization
 
 The adapter initializes the Velocity SDK automatically the first time MAX calls `initialize()`. You do **not** need to call `VelocityAds.initSDK()` yourself. The app key is read from the **App ID** field you configured in the MAX Custom Network dashboard entry.
@@ -125,43 +111,6 @@ If the SDK is already initialized (e.g. you initialize it directly in your app),
 | Adapter version | Velocity SDK version | Notes |
 |---|---|---|
 | 0.10.0.0 | 0.10.0 | Initial release |
-
----
-
-## Release process
-
-> **SDK-first requirement**: `io.velocity:ads-sdk:<version>` must be published to Maven Central before this adapter can be released. CI will fail until the matching SDK version ships.
-
-### Prerequisites
-
-Set the following secrets at the **`velocityiodev` org level** (shared automatically with all adapter repos; values are identical to those used by the SDK repos):
-
-| Secret | Purpose |
-|---|---|
-| `SIGNING_KEY_ID` | Short GPG key ID (last 8 hex characters of the fingerprint) for Maven artifact signing — identical to the SDK repo |
-| `SIGNING_KEY` | Base64-encoded binary GPG secret key (`gpg --export-secret-keys <ID> \| base64`, newlines stripped) — identical to the SDK repo |
-| `SIGNING_PASSWORD` | Passphrase for `SIGNING_KEY` — identical to the SDK repo |
-| `CENTRAL_PORTAL_TOKEN_USER` | Maven Central Portal user token (username half) |
-| `CENTRAL_PORTAL_TOKEN_PASSWORD` | Maven Central Portal user token (password half) |
-| `GPG_PRIVATE_KEY` | GPG private key for git tag signing (armored) |
-| `GPG_PASSPHRASE` | Passphrase for `GPG_PRIVATE_KEY` |
-| `GPG_TAGGER_NAME` | Display name for signed git tags |
-| `GPG_TAGGER_EMAIL` | Email for signed git tags |
-| `GPG_SIGNING_KEY_ID` | Full-length GPG key fingerprint for tag signing |
-
-### Steps
-
-1. On a release branch (`release/<version>`, e.g. `release/0.10.0.0`):
-   - Bump `VERSION_NAME` in `gradle.properties`.
-   - Add a `## <version>` entry to `CHANGELOG.md`.
-2. Push the branch and open a draft PR for review.
-3. **After the SDK version is on Maven Central**, go to **Actions → Release – Publish to Maven Central** and click **Run workflow**:
-   - **Branch**: your release branch (`release/<version>` — enforced by the workflow).
-   - **Version**: the 4-segment version, e.g. `0.10.0.0`.
-   - **Dry run**: `true` for a first check (stages to Maven Central, skips tag/release); `false` for the real release.
-4. If the dry run passes, drop the staging repository from the [Maven Central Portal](https://central.sonatype.com/) and re-run with **Dry run = false**.
-   The **Publish to Maven Central** job requires approval from the GitHub Environment **`production-release`** before `closeAndRelease` (configure required reviewers under **Settings → Environments** before the first release). Tagging runs only after that publish succeeds.
-5. Merge the release PR after the workflow succeeds.
 
 ---
 

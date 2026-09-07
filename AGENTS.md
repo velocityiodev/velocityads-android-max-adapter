@@ -14,14 +14,15 @@ This repository is publicly visible. Every file in it — `README.md`, `CHANGELO
 - Internal field names, API paths, server endpoints, or request/response structures that are not part of the public SDK surface.
 - Roadmap information: future mediation platforms, future adapter plans, or any unreleased product direction.
 - Naming convention strategy documents or internal architecture decisions.
-- Org-level CI secrets, credentials, or values (secret *names* in a prerequisites table are fine; actual values are never acceptable).
+- Org-level CI secrets, credentials, or values (secret *names* in `RELEASING.md` are fine; actual values, key formats, key provenance, or where the same key is reused are never acceptable).
 - References to internal tools, dashboards, or services not accessible to publishers.
+- Internal SDK bridge APIs (e.g. mediation/plugin bridge seams) and how telemetry or analytics are attributed. Publishers integrate through MAX; they do not need to know how the adapter talks to the SDK internally.
 
 ### What belongs here
 
-- Integration instructions written for publishers (how to add the adapter, configure MAX, handle privacy).
+- `README.md` — **publisher-facing only**: how to add the adapter, configure MAX, handle privacy, supported formats, version compatibility. No maintainer or release content.
+- `RELEASING.md` — contributor-facing release runbook: how to bump versions, trigger the release workflow, and the *names* of required secrets.
 - Adapter behaviour documentation (initialization, ad formats, error handling).
-- Contributor-facing release process (how to bump versions, trigger the release workflow, required secrets).
 - Public-facing `CHANGELOG.md` entries describing user-visible changes.
 
 ### Rule for coding agents
@@ -144,6 +145,6 @@ Delete everything that no longer reflects the current state of the codebase:
 ## Pre-merge checklist
 
 1. `./gradlew :velocity-max-adapter:build` passes (ktlint + unit tests).
-2. No internal repo names, field names, or roadmap content in any committed file.
+2. No internal repo names, field names, key material details, bridge APIs, or roadmap content in any committed file.
 3. `CHANGELOG.md` updated if the change is user-visible.
-4. `README.md` updated if the public-facing integration instructions changed.
+4. `README.md` updated if the public-facing integration instructions changed; `RELEASING.md` updated if the release procedure changed.
