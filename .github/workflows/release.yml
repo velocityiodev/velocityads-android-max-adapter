@@ -78,7 +78,8 @@ jobs:
       - name: Check CHANGELOG.md top entry
         run: |
           set -euo pipefail
-          TOP_ENTRY=$(grep -m1 '^## ' "$CHANGELOG_PATH" | sed 's/^## //')
+          # Keep a Changelog: "## [0.10.0.0] - 2026-09-07"
+          TOP_ENTRY=$(grep -m1 '^## \[' "$CHANGELOG_PATH" | sed -E 's/^## \[([^]]+)\].*/\1/')
           if [ "$TOP_ENTRY" != "$VERSION" ]; then
             echo "❌ CHANGELOG.md top entry mismatch"
             echo "   Expected : $VERSION"
@@ -275,8 +276,8 @@ jobs:
         id: notes
         run: |
           set -euo pipefail
-          # Extract the block between the first "## <version>" heading and the next "## " heading.
-          awk "/^## ${VERSION}/{found=1; next} found && /^## /{exit} found{print}" "$CHANGELOG_PATH" > /tmp/release-notes.md
+          # Extract the block between "## [<version>] - <date>" and the next "## " heading.
+          awk "/^## \\[${VERSION}\\]/{found=1; next} found && /^## /{exit} found{print}" "$CHANGELOG_PATH" > /tmp/release-notes.md
           if [ ! -s /tmp/release-notes.md ]; then
             echo "No CHANGELOG entry found for $VERSION — using version header only"
             echo "Release $VERSION" > /tmp/release-notes.md
