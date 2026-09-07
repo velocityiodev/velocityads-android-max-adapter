@@ -78,7 +78,8 @@ For each placement you want Velocity Ads to fill:
 2. In the **Custom Networks & Deals** section, add **Velocity Ads**.
 3. Set the **Placement ID** to your Velocity ad unit ID for that placement.
 4. In the **App ID** field, enter your Velocity Ads app key. MAX delivers this value
-   to the adapter as `serverParameters["app_id"]`.
+   to the adapter as `serverParameters["app_id"]`. Use **one Velocity app key per
+   application process** across all placements.
 
 ---
 
@@ -112,6 +113,8 @@ The Velocity SDK attaches these values to every ad request and every analytics e
 ## SDK Initialization
 
 The adapter initializes the Velocity SDK automatically the first time MAX calls `initialize()`. You do **not** need to call `VelocityAds.initSDK()` yourself. The app key is read from the **App ID** field you configured in the MAX Custom Network dashboard entry.
+
+Use **one Velocity app key per application process**. The Velocity SDK initializes once for the process; configuring different App ID values across MAX placements in the same app is unsupported.
 
 If the SDK is already initialized (e.g. you initialize it directly in your app), the adapter detects this and reports `INITIALIZED_SUCCESS` immediately.
 
@@ -153,10 +156,11 @@ Set the following secrets at the **`velocityiodev` org level** (shared automatic
    - Add a `## <version>` entry to `CHANGELOG.md`.
 2. Push the branch and open a draft PR for review.
 3. **After the SDK version is on Maven Central**, go to **Actions → Release – Publish to Maven Central** and click **Run workflow**:
-   - **Branch**: your release branch.
+   - **Branch**: your release branch (`release/<version>` — enforced by the workflow).
    - **Version**: the 4-segment version, e.g. `0.10.0.0`.
    - **Dry run**: `true` for a first check (stages to Maven Central, skips tag/release); `false` for the real release.
 4. If the dry run passes, drop the staging repository from the [Maven Central Portal](https://central.sonatype.com/) and re-run with **Dry run = false**.
+   Real publishes require approval from the GitHub Environment **`production-release`** (configure required reviewers under **Settings → Environments** before the first release).
 5. Merge the release PR after the workflow succeeds.
 
 ---

@@ -50,10 +50,34 @@ class VelocityAdsMediationAdapter(
         private val initCoalescer = InitCoalescer<Boolean>()
 
         /**
-         * The app key captured from the first [initialize] call, used as a fallback for
-         * load-time re-init attempts whose response parameters lack `app_id`.
+         * The app key captured from the first successful App ID sighting, used as a
+         * fallback for load-time re-init attempts whose response parameters lack `app_id`.
+         * First-wins: Velocity init is process-global, so later mismatched App IDs are
+         * logged and ignored for storage.
          */
         @Volatile private var storedAppKey: String? = null
+
+        /**
+         * Logs once when a second distinct App ID is observed in the same process.
+         */
+        private val appKeyMismatchLogged =
+            java.util.concurrent.atomic
+                .AtomicBoolean(false)
+
+        private fun rememberAppKey(appKey: String) {
+            val previous = storedAppKey
+            if (previous == null) {
+                storedAppKey = appKey
+                return
+            }
+            if (previous != appKey && appKeyMismatchLogged.compareAndSet(false, true)) {
+                Log.w(
+                    TAG,
+                    "Velocity Ads: multiple App ID values detected. " +
+                        "Use one Velocity app key per application process.",
+                )
+            }
+        }
 
         /**
          * Mediation name reported to the Velocity SDK via [VelocityAdsMediationBridge].
@@ -141,7 +165,7 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        storedAppKey = appKey
+        rememberAppKey(appKey)
 
         // Route through the shared initCoalescer so concurrent initialize() calls (one per
         // adapter instance that MAX may create) and concurrent ensureInitialized() calls from
@@ -268,7 +292,11 @@ class VelocityAdsMediationAdapter(
             return
         }
 
-        val appKey = extractAppKey(parameters) ?: storedAppKey
+        val loadAppKey = extractAppKey(parameters)
+        if (!loadAppKey.isNullOrBlank()) {
+            rememberAppKey(loadAppKey)
+        }
+        val appKey = loadAppKey ?: storedAppKey
         if (appKey.isNullOrBlank()) {
             // No app key ever seen — nothing to re-init with; fail as before.
             onReady(false)

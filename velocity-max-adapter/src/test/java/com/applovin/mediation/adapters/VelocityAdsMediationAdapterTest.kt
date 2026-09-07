@@ -73,6 +73,11 @@ class VelocityAdsMediationAdapterTest {
             storedAppKeyField.isAccessible = true
             storedAppKeyField.set(null, null)
 
+            val mismatchLoggedField = adapterClass.getDeclaredField("appKeyMismatchLogged")
+            mismatchLoggedField.isAccessible = true
+            val mismatchLogged = mismatchLoggedField.get(null) as java.util.concurrent.atomic.AtomicBoolean
+            mismatchLogged.set(false)
+
             sharedCoalescer()?.complete(false)
         } catch (_: Exception) {
             // Best-effort; failing to reset is not fatal but may cause inter-test interference.
