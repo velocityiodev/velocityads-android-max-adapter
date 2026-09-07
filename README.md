@@ -160,7 +160,7 @@ Set the following secrets at the **`velocityiodev` org level** (shared automatic
    - **Version**: the 4-segment version, e.g. `0.10.0.0`.
    - **Dry run**: `true` for a first check (stages to Maven Central, skips tag/release); `false` for the real release.
 4. If the dry run passes, drop the staging repository from the [Maven Central Portal](https://central.sonatype.com/) and re-run with **Dry run = false**.
-   Real publishes require approval from the GitHub Environment **`production-release`** (configure required reviewers under **Settings → Environments** before the first release).
+   The **Publish to Maven Central** job requires approval from the GitHub Environment **`production-release`** before `closeAndRelease` (configure required reviewers under **Settings → Environments** before the first release). Tagging runs only after that publish succeeds.
 5. Merge the release PR after the workflow succeeds.
 
 ---
