@@ -1,2 +1,119 @@
-# velocityads-android-max-adapter
-Velocity Ads Android MAX Adapter
+# Velocity Ads – AppLovin MAX Adapter (Android)
+
+This library is the official AppLovin MAX **custom-network adapter** for the Velocity Ads Android SDK. It lets MAX mediate Velocity Ads demand alongside all other networks in your waterfall with zero boilerplate in your app.
+
+---
+
+## Supported ad formats
+
+| Format | Supported |
+|---|---|
+| Interstitial | ✅ |
+| Rewarded | ✅ |
+| Banner / MREC / Leaderboard | ✅ |
+
+---
+
+## Requirements
+
+| Requirement | Minimum version |
+|---|---|
+| Android | API 24 (Android 7.0) |
+| AppLovin MAX SDK | 13.x |
+| Velocity Ads SDK | 0.10.0 |
+| Kotlin | 2.0+ |
+
+---
+
+## Installation
+
+Add the adapter to your app's `build.gradle`:
+
+```groovy
+dependencies {
+    // AppLovin MAX SDK (already present in most apps) — 13.0.1 is the version this
+    // adapter is built and tested against; any 13.x release is compatible.
+    implementation 'com.applovin:applovin-sdk:13.0.1'
+
+    // Velocity Ads SDK
+    implementation 'io.velocity:ads-sdk:0.10.0'
+
+    // Velocity Ads MAX Adapter
+    implementation 'io.velocity:max-mediation:0.10.0.0'
+}
+```
+
+Make sure the AppLovin Maven repository is in your repository list:
+
+```groovy
+// settings.gradle
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://artifacts.applovin.com/android" }
+    }
+}
+```
+
+---
+
+## MAX Dashboard Setup
+
+### Step 1 – Create a Custom Network
+
+1. In the MAX dashboard, go to **Mediation → Manage → Networks**.
+2. Click **Click here to add a Custom Network**.
+3. Set the following:
+   - **Network Type**: `SDK`
+   - **Name**: `Velocity Ads`
+   - **Android Adapter Class Name**: `com.applovin.mediation.adapters.VelocityAdsMediationAdapter`
+   - **iOS Adapter Class Name**: *(leave empty or set the iOS adapter class if applicable)*
+
+### Step 2 – Create Ad Units
+
+For each placement you want Velocity Ads to fill:
+
+1. Go to **Mediation → Manage → Ad Units** and open (or create) the ad unit.
+2. In the **Custom Networks & Deals** section, add **Velocity Ads**.
+3. Set the **Placement ID** to your Velocity ad unit ID for that placement.
+4. In the **App ID** field, enter your Velocity Ads app key. MAX delivers this value
+   to the adapter as `serverParameters["app_id"]`. Use **one Velocity app key per
+   application process** across all placements.
+
+---
+
+## Privacy & Consent
+
+The adapter automatically forwards the device's AppLovin privacy state to the Velocity SDK before every ad request. It reads directly from `AppLovinPrivacySettings` — the authoritative Android source that the publisher (or their CMP) sets — rather than from per-request MAX adapter parameters:
+
+| AppLovin privacy source | Velocity Ads API |
+|---|---|
+| `AppLovinPrivacySettings.hasUserConsent(context)` (forwarded only when `isUserConsentSet` is `true`) | `VelocityAds.setConsent(Boolean)` – `true` = consent granted (GDPR) |
+| `AppLovinPrivacySettings.isDoNotSell(context)` (forwarded only when `isDoNotSellSet` is `true`) | `VelocityAds.setDoNotSell(Boolean)` – `true` = opt-out (CCPA) |
+
+No additional integration is required in your app beyond the standard AppLovin privacy setup. A signal that has not been set is not forwarded, and the Velocity SDK retains its previous value. Privacy is forwarded at initialization (before the SDK boots) and on every ad load, so mid-session consent changes propagate on the next request.
+
+---
+
+## SDK Initialization
+
+The adapter initializes the Velocity SDK automatically the first time MAX calls `initialize()`. You do **not** need to call `VelocityAds.initSDK()` yourself. The app key is read from the **App ID** field you configured in the MAX Custom Network dashboard entry.
+
+Use **one Velocity app key per application process**. The Velocity SDK initializes once for the process; configuring different App ID values across MAX placements in the same app is unsupported.
+
+If the SDK is already initialized (e.g. you initialize it directly in your app), the adapter detects this and reports `INITIALIZED_SUCCESS` immediately.
+
+---
+
+## Version history
+
+| Adapter version | Velocity SDK version | Notes |
+|---|---|---|
+| 0.10.0.0 | 0.10.0 | Initial release |
+
+---
+
+## License
+
+Apache License 2.0 – see [LICENSE](LICENSE).
