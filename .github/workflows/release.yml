@@ -51,7 +51,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          # Pin to the dispatch commit so a later push to the release branch
+          # cannot change what gets built, published, or tagged after approval.
+          ref: ${{ github.sha }}
 
       - name: Validate version format (4-segment semver)
         run: |
@@ -128,7 +130,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          # Pin to the dispatch commit so a later push to the release branch
+          # cannot change what gets built, published, or tagged after approval.
+          ref: ${{ github.sha }}
 
       - name: Validate required secrets
         run: |
@@ -234,7 +238,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          # Pin to the dispatch commit so a later push to the release branch
+          # cannot change what gets built, published, or tagged after approval.
+          ref: ${{ github.sha }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -277,7 +283,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          # Pin to the dispatch commit so a later push to the release branch
+          # cannot change what gets built, published, or tagged after approval.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Download release AAR
