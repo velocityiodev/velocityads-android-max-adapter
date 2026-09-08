@@ -2,6 +2,7 @@ package com.applovin.mediation.adapters
 
 import android.app.Activity
 import android.os.Bundle
+import android.os.Looper
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdapter
 import com.applovin.mediation.adapter.MaxAdapterError
@@ -11,31 +12,37 @@ import com.applovin.mediation.adapter.listeners.MaxRewardedAdapterListener
 import com.applovin.mediation.adapter.parameters.MaxAdapterInitializationParameters
 import com.applovin.mediation.adapter.parameters.MaxAdapterResponseParameters
 import com.applovin.sdk.AppLovinSdk
+import io.velocityads.sdk.listeners.VelocityAdsInitListener
+import io.velocityads.sdk.models.VelocityAdsError
+import io.velocityads.sdk.models.VelocityAdsErrorCode
+import java.time.Duration
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
+import org.mockito.Mockito.anyString
+import org.mockito.Mockito.eq
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
  * Unit tests for [VelocityAdsMediationAdapter].
  *
- * Note on VelocityAds mocking: [VelocityAds] is a Kotlin `object` using interface
- * delegation, so its methods are not static invocations — Mockito's `mockStatic`
- * cannot intercept them. Tests that depend on
- * [io.velocityads.sdk.VelocityAds.isInitialized] returning `true` are therefore covered
- * at the integration-test level; the unit tests here focus on the adapter's guard logic,
- * wiring, and error-delivery behaviour — all of which are testable without SDK
- * initialisation, because the SDK is always non-initialised in the test process.
+ * The Velocity SDK is never initialised in the test process. The init call and the
+ * initialised-state query are replaced through the adapter's test seams
+ * ([VelocityAdsMediationAdapter.initSdkRunner] / [VelocityAdsMediationAdapter.isSdkInitialized])
+ * so the coalesced init flow can be driven deterministically without network I/O.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
@@ -43,45 +50,23 @@ class VelocityAdsMediationAdapterTest {
     private lateinit var sdk: AppLovinSdk
     private lateinit var adapter: VelocityAdsMediationAdapter
 
+    /** The listeners handed to the fake init runner, in call order. */
+    private val initListeners = mutableListOf<VelocityAdsInitListener>()
+    private var sdkInitialized = false
+
     @Before
     fun setUp() {
         // RETURNS_DEEP_STUBS prevents NPEs in MediationAdapterBase.<init>, which calls
         // internal obfuscated methods on the AppLovinSdk instance.
         sdk = mock(AppLovinSdk::class.java, Mockito.RETURNS_DEEP_STUBS)
         adapter = VelocityAdsMediationAdapter(sdk)
+        VelocityAdsMediationAdapter.initSdkRunner = { _, _, listener -> initListeners += listener }
+        VelocityAdsMediationAdapter.isSdkInitialized = { sdkInitialized }
     }
 
     @After
     fun tearDown() {
-        // VelocityAdsMediationAdapter companion-object fields (storedAppKey, initCoalescer) are
-        // shared across all adapter instances and across tests in the same JVM. Reset them so
-        // each test starts from a clean state.
-        resetCompanionState()
-    }
-
-    /**
-     * Resets the static fields of [VelocityAdsMediationAdapter] that are shared across
-     * instances and persist between tests: [storedAppKey] and the [InitCoalescer].
-     * Uses reflection because both are `private` — exposing a `resetForTesting()` hook
-     * on the production class would widen its API surface.
-     */
-    private fun resetCompanionState() {
-        try {
-            val adapterClass = VelocityAdsMediationAdapter::class.java
-
-            val storedAppKeyField = adapterClass.getDeclaredField("storedAppKey")
-            storedAppKeyField.isAccessible = true
-            storedAppKeyField.set(null, null)
-
-            val mismatchLoggedField = adapterClass.getDeclaredField("appKeyMismatchLogged")
-            mismatchLoggedField.isAccessible = true
-            val mismatchLogged = mismatchLoggedField.get(null) as java.util.concurrent.atomic.AtomicBoolean
-            mismatchLogged.set(false)
-
-            sharedCoalescer()?.complete(false)
-        } catch (_: Exception) {
-            // Best-effort; failing to reset is not fatal but may cause inter-test interference.
-        }
+        VelocityAdsMediationAdapter.resetForTesting()
     }
 
     /** Returns the shared companion [InitCoalescer] via reflection, or null on failure. */
@@ -94,6 +79,13 @@ class VelocityAdsMediationAdapterTest {
         } catch (_: Exception) {
             null
         }
+
+    private fun advanceMainLooper(ms: Long) {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
+    }
+
+    private fun inProgressError() =
+        VelocityAdsError(VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS, "SDK initialization is already in progress.")
 
     // ========== Helpers ==========
 
@@ -109,9 +101,9 @@ class VelocityAdsMediationAdapterTest {
     }
 
     /**
-     * Returns load parameters. With the default null [appKey] and a never-initialised SDK,
+     * Returns load parameters. With the default null [appKey] and no remembered key,
      * [VelocityAdsMediationAdapter.ensureInitialized] takes the fast-fail path
-     * (no app key ever seen → `onReady(false)`) without touching the real Velocity SDK.
+     * (no app key ever seen → `onReady(false)`).
      */
     private fun mockLoadParams(
         adUnitId: String? = "test-ad-unit",
@@ -161,10 +153,6 @@ class VelocityAdsMediationAdapterTest {
      * `app_id`, both must report INITIALIZED_UNKNOWN immediately and independently without
      * crashing or interfering with each other. The real SDK init is deferred to the first
      * load, where the waterfall entry's app_id is available via ensureInitialized().
-     *
-     * The coalescing behaviour for in-flight init attempts is exercised exhaustively by
-     * [InitCoalescerTest]. End-to-end verification of two concurrent SUCCESS deliveries
-     * requires mocking [VelocityAds] (integration test territory — see class KDoc).
      */
     @Test
     fun `concurrent initialize calls with no appKey both deliver INITIALIZED_UNKNOWN gracefully`() {
@@ -187,6 +175,168 @@ class VelocityAdsMediationAdapterTest {
     fun `destroy before any initialize is a safe no-op`() {
         // When / Then — must not throw
         adapter.onDestroy()
+    }
+
+    // ========== initialize() — claimed init through the SDK ==========
+
+    @Test
+    fun `initialize with an already initialized SDK reports success without calling initSDK`() {
+        sdkInitialized = true
+        val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
+
+        adapter.initialize(mockInitParams(), null, onCompletion)
+
+        verify(onCompletion).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+        assertTrue(initListeners.isEmpty())
+    }
+
+    @Test
+    fun `initialize with an appKey starts exactly one SDK init and reports its success`() {
+        val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
+
+        adapter.initialize(mockInitParams(), null, onCompletion)
+        assertEquals(1, initListeners.size)
+        verifyNoInteractions(onCompletion)
+
+        initListeners.single().onInitSuccess()
+
+        verify(onCompletion).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+    }
+
+    @Test
+    fun `initialize reports failure when the SDK init fails`() {
+        val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
+
+        adapter.initialize(mockInitParams(), null, onCompletion)
+        initListeners.single().onInitFailure(VelocityAdsError(VelocityAdsErrorCode.NETWORK_ERROR, "offline"))
+
+        verify(onCompletion).onCompletion(eq(MaxAdapter.InitializationStatus.INITIALIZED_FAILURE), anyString())
+    }
+
+    @Test
+    fun `simultaneous initialize calls coalesce onto one SDK init and share the outcome`() {
+        val first = mock(MaxAdapter.OnCompletionListener::class.java)
+        val second = mock(MaxAdapter.OnCompletionListener::class.java)
+
+        adapter.initialize(mockInitParams(), null, first)
+        VelocityAdsMediationAdapter(sdk).initialize(mockInitParams(), null, second)
+        assertEquals(1, initListeners.size)
+
+        initListeners.single().onInitSuccess()
+
+        verify(first).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+        verify(second).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+    }
+
+    @Test
+    fun `a failed init releases the claim so the next attempt calls initSDK again`() {
+        adapter.initialize(mockInitParams(), null, mock(MaxAdapter.OnCompletionListener::class.java))
+        initListeners.single().onInitFailure(VelocityAdsError(VelocityAdsErrorCode.NETWORK_ERROR, "offline"))
+
+        val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
+        adapter.initialize(mockInitParams(), null, onCompletion)
+
+        assertEquals(2, initListeners.size)
+        initListeners.last().onInitSuccess()
+        verify(onCompletion).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+    }
+
+    @Test
+    fun `initialize survives a throwing initSDK and reports failure`() {
+        VelocityAdsMediationAdapter.initSdkRunner = { _, _, _ -> throw IllegalStateException("boom") }
+        val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
+
+        adapter.initialize(mockInitParams(), null, onCompletion)
+
+        verify(onCompletion).onCompletion(eq(MaxAdapter.InitializationStatus.INITIALIZED_FAILURE), anyString())
+        assertFalse(checkNotNull(sharedCoalescer()).isClaimed)
+    }
+
+    // ========== initialize() — host-owned init in flight ==========
+
+    @Test
+    fun `an in-progress rejection polls isInitialized instead of calling initSDK again`() {
+        val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
+        adapter.initialize(mockInitParams(), null, onCompletion)
+
+        initListeners.single().onInitFailure(inProgressError())
+        advanceMainLooper(InFlightInitPoller.DEFAULT_POLL_INTERVAL_MS * 3)
+        verifyNoInteractions(onCompletion)
+
+        sdkInitialized = true
+        advanceMainLooper(InFlightInitPoller.DEFAULT_POLL_INTERVAL_MS)
+
+        verify(onCompletion).onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
+        assertEquals(1, initListeners.size)
+    }
+
+    @Test
+    fun `an in-progress rejection whose host init never completes fails after the poll window`() {
+        val onCompletion = mock(MaxAdapter.OnCompletionListener::class.java)
+        adapter.initialize(mockInitParams(), null, onCompletion)
+
+        initListeners.single().onInitFailure(inProgressError())
+        advanceMainLooper(InFlightInitPoller.DEFAULT_TIMEOUT_MS - InFlightInitPoller.DEFAULT_POLL_INTERVAL_MS)
+        verifyNoInteractions(onCompletion)
+
+        advanceMainLooper(InFlightInitPoller.DEFAULT_POLL_INTERVAL_MS)
+
+        verify(onCompletion).onCompletion(eq(MaxAdapter.InitializationStatus.INITIALIZED_FAILURE), anyString())
+        assertFalse(checkNotNull(sharedCoalescer()).isClaimed)
+    }
+
+    @Test
+    fun `loads arriving during the poll window park on the claim and share its outcome`() {
+        adapter.initialize(mockInitParams(), null, mock(MaxAdapter.OnCompletionListener::class.java))
+        initListeners.single().onInitFailure(inProgressError())
+
+        val ready = mutableListOf<Boolean>()
+        adapter.ensureInitialized(mockLoadParams(appKey = "test-app-key")) { ready += it }
+        assertTrue(ready.isEmpty())
+        assertEquals(1, initListeners.size)
+
+        sdkInitialized = true
+        advanceMainLooper(InFlightInitPoller.DEFAULT_POLL_INTERVAL_MS)
+
+        assertEquals(listOf(true), ready)
+    }
+
+    // ========== ensureInitialized ==========
+
+    @Test
+    fun `ensureInitialized with an initialized SDK reports ready synchronously`() {
+        sdkInitialized = true
+        val ready = mutableListOf<Boolean>()
+
+        adapter.ensureInitialized(mockLoadParams()) { ready += it }
+
+        assertEquals(listOf(true), ready)
+        assertTrue(initListeners.isEmpty())
+    }
+
+    @Test
+    fun `ensureInitialized with a load-time appKey starts the SDK init and reports its outcome`() {
+        val ready = mutableListOf<Boolean>()
+
+        adapter.ensureInitialized(mockLoadParams(appKey = "test-app-key")) { ready += it }
+        assertTrue(ready.isEmpty())
+
+        initListeners.single().onInitSuccess()
+
+        assertEquals(listOf(true), ready)
+    }
+
+    @Test
+    fun `ensureInitialized falls back to the appKey remembered from initialize`() {
+        adapter.initialize(mockInitParams(appKey = "remembered-key"), null, mock(MaxAdapter.OnCompletionListener::class.java))
+        initListeners.single().onInitFailure(VelocityAdsError(VelocityAdsErrorCode.NETWORK_ERROR, "offline"))
+        val ready = mutableListOf<Boolean>()
+
+        adapter.ensureInitialized(mockLoadParams(appKey = null)) { ready += it }
+
+        assertEquals(2, initListeners.size)
+        initListeners.last().onInitSuccess()
+        assertEquals(listOf(true), ready)
     }
 
     // ========== Load — adUnitId guard ==========
@@ -265,11 +415,10 @@ class VelocityAdsMediationAdapterTest {
 
     // ========== Load — not-initialized path ==========
     //
-    // When VelocityAds is not initialised (the real state in a unit-test JVM) and no
-    // app key is available (initialize() was never called, so storedAppKey is null, and
-    // the load parameters carry no app_id), ensureInitialized() calls onReady(false)
-    // synchronously — before reaching the coalescer or the real SDK. This tests the full
-    // load delegate wiring without any SDK mocking.
+    // When the SDK is not initialised and no app key is available (initialize() was never
+    // called, so storedAppKey is null, and the load parameters carry no app_id),
+    // ensureInitialized() calls onReady(false) synchronously — before reaching the
+    // coalescer or the SDK. This tests the full load delegate wiring.
 
     @Test
     fun `loadInterstitialAd when SDK not initialized and no appKey delivers NOT_INITIALIZED`() {
@@ -411,7 +560,7 @@ class VelocityAdsMediationAdapterTest {
     // A load whose continuation is parked in the shared InitCoalescer (init in flight)
     // must become a no-op if the adapter is destroyed before init completes: no ad object
     // creation and no listener callback. Pre-claiming the coalescer keeps the parked load
-    // from winning the claim, so the real Velocity SDK is never touched.
+    // from winning the claim, so only the parked continuation is exercised.
 
     @Test
     fun `parked load continuation after destroy is a no-op`() {

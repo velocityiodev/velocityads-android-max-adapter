@@ -58,7 +58,8 @@ velocityads-android-max-adapter/
 │       ├── VelocityRewardedAdHandler.kt        # Translates Velocity callbacks → MAX rewarded
 │       ├── VelocityBannerAdHandler.kt          # Manages banner load + translates callbacks
 │       ├── VelocityAdsErrorMapper.kt           # Maps VelocityAdsError → MaxAdapterError
-│       └── InitCoalescer.kt                    # Coalesces concurrent init attempts
+│       ├── InitCoalescer.kt                    # Coalesces concurrent init attempts
+│       └── InFlightInitPoller.kt               # Polls for in-progress SDK init
 ├── build.gradle                                # Root build: Nexus publish plugin + ktlint plugin
 ├── gradle.properties                           # VERSION_NAME, GROUP, ARTIFACT_ID
 └── .github/workflows/

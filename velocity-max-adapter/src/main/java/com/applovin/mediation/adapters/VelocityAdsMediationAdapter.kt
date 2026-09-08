@@ -1,9 +1,9 @@
 package com.applovin.mediation.adapters
 
 import android.app.Activity
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.os.SystemClock
 import android.util.Log
 import com.applovin.mediation.MaxAdFormat
 import com.applovin.mediation.adapter.MaxAdViewAdapter
@@ -25,6 +25,7 @@ import io.velocityads.sdk.listeners.VelocityAdsInitListener
 import io.velocityads.sdk.models.VelocityAdsError
 import io.velocityads.sdk.models.VelocityAdsErrorCode
 import io.velocityads.sdk.models.VelocityAdsInitRequest
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * AppLovin MAX custom-network adapter for the Velocity Ads SDK.
@@ -40,8 +41,7 @@ class VelocityAdsMediationAdapter(
     FormatAdapterContext {
     companion object {
         private const val TAG = "VelocityAdsAdapter"
-        private const val INIT_POLL_INTERVAL_MS = 200L
-        private const val INIT_POLL_TIMEOUT_MS = 5_000L
+        private const val MEDIATION_NAME = "max"
 
         /**
          * Shared across adapter instances (MAX may create one per ad unit) because
@@ -57,12 +57,37 @@ class VelocityAdsMediationAdapter(
          */
         @Volatile private var storedAppKey: String? = null
 
+        private val appKeyMismatchLogged = AtomicBoolean(false)
+
+        private val mediationInfoForwarded = AtomicBoolean(false)
+
+        private val defaultInitSdkRunner: (Context?, VelocityAdsInitRequest, VelocityAdsInitListener) -> Unit =
+            { context, request, listener ->
+                VelocityAds.initSDK(requireNotNull(context) { "application context unavailable" }, request, listener)
+            }
+
         /**
-         * Logs once when a second distinct App ID is observed in the same process.
+         * Test seam: performs the Velocity SDK initialization call. Production wiring is
+         * [VelocityAds.initSDK]; tests substitute a fake so the coalesced init flow can be
+         * driven deterministically without network I/O. A missing application context is
+         * surfaced as a throw so [startClaimedInit] fails the attempt cleanly.
          */
-        private val appKeyMismatchLogged =
-            java.util.concurrent.atomic
-                .AtomicBoolean(false)
+        internal var initSdkRunner: (Context?, VelocityAdsInitRequest, VelocityAdsInitListener) -> Unit = defaultInitSdkRunner
+
+        /** Test seam: reports whether the Velocity SDK is initialized. Production wiring is [VelocityAds.isInitialized]. */
+        internal var isSdkInitialized: () -> Boolean = VelocityAds::isInitialized
+
+        /**
+         * Test-only: drains and unclaims the shared coalescer and clears all remembered state
+         * and seams so nothing leaks between test cases.
+         */
+        internal fun resetForTesting() {
+            if (initCoalescer.isClaimed) initCoalescer.complete(false)
+            storedAppKey = null
+            appKeyMismatchLogged.set(false)
+            initSdkRunner = defaultInitSdkRunner
+            isSdkInitialized = VelocityAds::isInitialized
+        }
 
         private fun rememberAppKey(appKey: String) {
             val previous = storedAppKey
@@ -79,24 +104,7 @@ class VelocityAdsMediationAdapter(
             }
         }
 
-        /**
-         * Mediation name reported to the Velocity SDK via [VelocityAdsMediationBridge].
-         * Owned by this adapter — the SDK accepts any lowercase canonical string.
-         */
-        private const val MEDIATION_NAME = "max"
-
-        /**
-         * One-shot guard for [forwardMediationInfo] — the values (mediation name,
-         * adapter version, AppLovin SDK version) never change mid-session.
-         */
-        private val mediationInfoForwarded =
-            java.util.concurrent.atomic
-                .AtomicBoolean(false)
-
-        /**
-         * Reports the mediation environment (MAX) to the Velocity SDK. Safe to call
-         * from any adapter entry point; only the first call has an effect.
-         */
+        /** Reports the mediation environment to the Velocity SDK. Idempotent; safe from any entry point. */
         internal fun forwardMediationInfo() {
             if (!mediationInfoForwarded.compareAndSet(false, true)) return
             VelocityAdsMediationBridge.setMediationInfo(
@@ -141,14 +149,12 @@ class VelocityAdsMediationAdapter(
         activity: Activity?,
         onCompletionListener: MaxAdapter.OnCompletionListener,
     ) {
-        // Identify the mediation environment before SDK init so the very first
-        // request and event carry it.
         forwardMediationInfo()
         // Forward privacy signals before the fast-path return so consent is always
         // up-to-date even when the SDK was pre-initialised by the host app.
         forwardPrivacySettings()
 
-        if (VelocityAds.isInitialized()) {
+        if (isSdkInitialized()) {
             onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
             return
         }
@@ -170,7 +176,7 @@ class VelocityAdsMediationAdapter(
         // adapter instance that MAX may create) and concurrent ensureInitialized() calls from
         // the load path all share a single in-flight initSDK attempt and its outcome.
         runOnMainNow {
-            if (VelocityAds.isInitialized()) {
+            if (isSdkInitialized()) {
                 onCompletionListener.onCompletion(MaxAdapter.InitializationStatus.INITIALIZED_SUCCESS, null)
                 return@runOnMainNow
             }
@@ -201,78 +207,6 @@ class VelocityAdsMediationAdapter(
         parameters.serverParameters?.getString("app_id")?.takeUnless { it.isBlank() }
 
     /**
-     * Polls on the main thread until the host-owned in-flight initialization resolves, then
-     * either succeeds fast or re-attempts [VelocityAds.initSDK] itself — the Velocity SDK
-     * explicitly permits re-init from its FAILED state, so a failed host init is retried
-     * immediately instead of waiting out the full poll window. [onResult] is invoked exactly
-     * once: every path either terminates with a result or reschedules itself, and the
-     * deadline is only checked between attempts (never while an owned re-init is in flight).
-     */
-    private fun awaitInFlightInitialization(
-        appKey: String,
-        onResult: (Boolean) -> Unit,
-    ) {
-        val handler = Handler(Looper.getMainLooper())
-        val deadlineUptimeMs = SystemClock.uptimeMillis() + INIT_POLL_TIMEOUT_MS
-        // A VelocityAdsInitListener could in principle deliver more than one terminal
-        // callback (success then a late failure, or a repeated failure). Because
-        // onResult feeds initCoalescer.complete(), a second invocation would reset the
-        // coalescer's claim and could fire a *newer* attempt's parked handler with this
-        // stale outcome. Guard so onResult runs exactly once for this await.
-        var settled = false
-        val settle: (Boolean) -> Unit = { initialized ->
-            if (!settled) {
-                settled = true
-                onResult(initialized)
-            }
-        }
-        val attempt =
-            object : Runnable {
-                override fun run() {
-                    if (settled) {
-                        return
-                    }
-                    if (VelocityAds.isInitialized()) {
-                        settle(true)
-                        return
-                    }
-                    if (SystemClock.uptimeMillis() >= deadlineUptimeMs) {
-                        settle(false)
-                        return
-                    }
-                    val reattempt = this
-                    val retryListener =
-                        object : VelocityAdsInitListener {
-                            override fun onInitSuccess() {
-                                settle(true)
-                            }
-
-                            override fun onInitFailure(error: VelocityAdsError) {
-                                if (settled) {
-                                    return
-                                }
-                                if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
-                                    // Host init still in flight — check again shortly.
-                                    handler.postDelayed(reattempt, INIT_POLL_INTERVAL_MS)
-                                } else {
-                                    Log.w(TAG, "Velocity Ads re-init after host init failed [${error.code}]: ${error.message}")
-                                    settle(false)
-                                }
-                            }
-                        }
-                    val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
-                    try {
-                        VelocityAds.initSDK(getApplicationContext(), initRequest, retryListener)
-                    } catch (t: Throwable) {
-                        Log.e(TAG, "Velocity Ads initSDK threw unexpectedly during re-init", t)
-                        settle(false)
-                    }
-                }
-            }
-        handler.post(attempt)
-    }
-
-    /**
      * Ensures the Velocity SDK is initialized before a load proceeds.
      *
      * If the SDK is already up, [onReady] fires with `true` synchronously. Otherwise a
@@ -286,7 +220,7 @@ class VelocityAdsMediationAdapter(
         parameters: MaxAdapterResponseParameters,
         onReady: (Boolean) -> Unit,
     ) {
-        if (VelocityAds.isInitialized()) {
+        if (isSdkInitialized()) {
             onReady(true)
             return
         }
@@ -303,7 +237,7 @@ class VelocityAdsMediationAdapter(
         }
 
         runOnMainNow {
-            if (VelocityAds.isInitialized()) {
+            if (isSdkInitialized()) {
                 onReady(true)
                 return@runOnMainNow
             }
@@ -315,9 +249,14 @@ class VelocityAdsMediationAdapter(
     }
 
     /**
-     * Performs the actual [VelocityAds.initSDK] call on behalf of the caller that won
-     * the coalescer claim, broadcasting the outcome to every parked handler when the
-     * SDK responds.
+     * Performs the actual Velocity SDK init call on behalf of the caller that won the
+     * coalescer claim, broadcasting the outcome to every parked handler when the SDK responds.
+     *
+     * If the SDK reports `SDK_INITIALIZATION_IN_PROGRESS` — the host app called `initSDK`
+     * moments before the adapter did — the claim stays held and [InFlightInitPoller] waits for
+     * that init to settle, so concurrent callers keep parking on the coalescer instead of
+     * failing. A host init that fails inside the poll window surfaces as a timeout; the next
+     * load re-attempts init, which the Velocity SDK permits from its FAILED state.
      */
     private fun startClaimedInit(appKey: String) {
         val initRequest = VelocityAdsInitRequest.Builder(appKey).build()
@@ -329,19 +268,20 @@ class VelocityAdsMediationAdapter(
 
                 override fun onInitFailure(error: VelocityAdsError) {
                     if (error.code == VelocityAdsErrorCode.SDK_INITIALIZATION_IN_PROGRESS) {
-                        // Another caller (e.g. the host app) owns the in-flight init —
-                        // wait for its outcome instead of failing the parked loads.
-                        awaitInFlightInitialization(appKey) { initialized ->
+                        InFlightInitPoller.awaitInitialization(isInitialized = isSdkInitialized) { initialized ->
+                            if (!initialized) {
+                                Log.w(TAG, "Velocity Ads: timed out waiting for in-flight SDK initialization")
+                            }
                             initCoalescer.complete(initialized)
                         }
                         return
                     }
-                    Log.w(TAG, "Velocity Ads re-init before load failed [${error.code}]: ${error.message}")
+                    Log.w(TAG, "Velocity Ads initialization failed [${error.code}]: ${error.message}")
                     initCoalescer.complete(false)
                 }
             }
         try {
-            VelocityAds.initSDK(getApplicationContext(), initRequest, initListener)
+            initSdkRunner(getApplicationContext(), initRequest, initListener)
         } catch (t: Throwable) {
             // The Velocity SDK's public API contract is no-throw, but a synchronous throw
             // here would otherwise strand the claimed coalescer forever (parking every

@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+* When the host app initializes the Velocity SDK at the same moment as the adapter, the adapter now waits for that initialization to finish instead of repeatedly re-requesting it.
+
 ## [0.10.0.0] - 2026-09-07
 
 ### Added
