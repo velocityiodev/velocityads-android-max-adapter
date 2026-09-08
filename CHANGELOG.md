@@ -1,11 +1,5 @@
 # Changelog
 
-## [Unreleased]
-
-### Fixed
-
-* Reduced log noise when the app initializes the Velocity SDK itself.
-
 ## [0.10.0.0] - 2026-09-07
 
 ### Added
