@@ -339,6 +339,21 @@ class VelocityAdsMediationAdapterTest {
         assertEquals(listOf(true), ready)
     }
 
+    @Test
+    fun `a mismatched load-time appKey is ignored in favour of the first key seen`() {
+        val capturedAppKeys = mutableListOf<String>()
+        VelocityAdsMediationAdapter.initSdkRunner = { _, request, listener ->
+            capturedAppKeys += request.appKey
+            initListeners += listener
+        }
+        adapter.initialize(mockInitParams(appKey = "first-key"), null, mock(MaxAdapter.OnCompletionListener::class.java))
+        initListeners.single().onInitFailure(VelocityAdsError(VelocityAdsErrorCode.NETWORK_ERROR, "offline"))
+
+        adapter.ensureInitialized(mockLoadParams(appKey = "other-key")) { }
+
+        assertEquals(listOf("first-key", "first-key"), capturedAppKeys)
+    }
+
     // ========== Load — adUnitId guard ==========
 
     @Test
