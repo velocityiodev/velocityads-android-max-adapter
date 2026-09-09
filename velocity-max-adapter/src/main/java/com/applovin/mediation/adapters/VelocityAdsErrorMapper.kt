@@ -6,6 +6,12 @@ import io.velocityads.sdk.models.VelocityAdsErrorCode
 
 internal object VelocityAdsErrorMapper {
     /**
+     * `VelocityAdsErrorCode.MEDIA_UNREACHABLE`. Spelled out as a literal so the adapter
+     * keeps compiling against SDK versions that predate the constant.
+     */
+    internal const val MEDIA_UNREACHABLE = 2013
+
+    /**
      * Maps a [VelocityAdsError] to the closest [MaxAdapterError], passing the Velocity
      * code and message through as the third-party SDK error so both stay visible in
      * MAX logs and error reports.
@@ -42,6 +48,12 @@ internal object VelocityAdsErrorMapper {
                 VelocityAdsErrorCode.LOAD_SERVICE_UNAVAILABLE -> MaxAdapterError.NOT_INITIALIZED
 
                 VelocityAdsErrorCode.NO_FILL -> MaxAdapterError.NO_FILL
+
+                // MEDIA_UNREACHABLE (SDK ≥ 0.11.0): the video ad's media cannot be
+                // fetched on this device and network, so the SDK fails the load instead
+                // of showing a black screen. NO_FILL lets the MAX waterfall move on to
+                // the next network rather than surfacing an adapter fault.
+                MEDIA_UNREACHABLE -> MaxAdapterError.NO_FILL
 
                 // Velocity's internal waterfall exhausted all adapters or threw — not a
                 // demand signal. Map to INTERNAL_ERROR so MAX doesn't penalise eCPM ranking
