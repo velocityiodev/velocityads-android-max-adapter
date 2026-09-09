@@ -43,6 +43,10 @@ internal object VelocityAdsErrorMapper {
 
                 VelocityAdsErrorCode.NO_FILL -> MaxAdapterError.NO_FILL
 
+                // The ad media cannot be fetched on this device and network; NO_FILL lets
+                // the waterfall move on rather than surfacing an adapter fault.
+                VelocityAdsErrorCode.MEDIA_UNREACHABLE -> MaxAdapterError.NO_FILL
+
                 // Velocity's internal waterfall exhausted all adapters or threw — not a
                 // demand signal. Map to INTERNAL_ERROR so MAX doesn't penalise eCPM ranking
                 // as if Velocity had no inventory.

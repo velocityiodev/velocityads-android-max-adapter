@@ -102,6 +102,11 @@ class VelocityAdsErrorMapperTest {
     }
 
     @Test
+    fun `MEDIA_UNREACHABLE maps to NO_FILL`() {
+        assertMapping(VelocityAdsErrorCode.MEDIA_UNREACHABLE, MaxAdapterError.NO_FILL)
+    }
+
+    @Test
     fun `INTERNAL_ERROR maps to INTERNAL_ERROR`() {
         assertMapping(VelocityAdsErrorCode.INTERNAL_ERROR, MaxAdapterError.INTERNAL_ERROR)
     }
