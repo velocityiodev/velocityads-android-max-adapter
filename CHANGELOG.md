@@ -1,9 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [0.10.1.0] - 2026-09-14
 
 ### Changed
 
+* Wraps Velocity Ads Android SDK 0.10.1.
 * Unreachable ad media (Velocity error `2013`) is now reported to MAX as `NO_FILL` so the waterfall moves on.
 
 ## [0.10.0.0] - 2026-09-07
