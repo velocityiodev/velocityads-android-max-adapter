@@ -102,11 +102,6 @@ class VelocityAdsErrorMapperTest {
     }
 
     @Test
-    fun `MEDIA_UNREACHABLE maps to NO_FILL`() {
-        assertMapping(VelocityAdsErrorCode.MEDIA_UNREACHABLE, MaxAdapterError.NO_FILL)
-    }
-
-    @Test
     fun `INTERNAL_ERROR maps to INTERNAL_ERROR`() {
         assertMapping(VelocityAdsErrorCode.INTERNAL_ERROR, MaxAdapterError.INTERNAL_ERROR)
     }
@@ -119,6 +114,16 @@ class VelocityAdsErrorMapperTest {
     @Test
     fun `WATERFALL_LOAD_FAILED maps to INTERNAL_ERROR`() {
         assertMapping(VelocityAdsErrorCode.WATERFALL_LOAD_FAILED, MaxAdapterError.INTERNAL_ERROR)
+    }
+
+    @Test
+    fun `WATERFALL_LOAD_FAILED is flat INTERNAL_ERROR regardless of the reason named in the message`() {
+        // The SDK names the reason in the message only; the adapter must never parse it.
+        val message = "Winning network failed to load its creative (some reason): adapter detail"
+        val mapped = VelocityAdsErrorMapper.toMaxAdapterError(VelocityAdsError(VelocityAdsErrorCode.WATERFALL_LOAD_FAILED, message))
+        assertEquals(MaxAdapterError.INTERNAL_ERROR.code, mapped.code, "A failed winning creative is a load failure, never NO_FILL")
+        assertEquals(VelocityAdsErrorCode.WATERFALL_LOAD_FAILED, mapped.mediatedNetworkErrorCode)
+        assertEquals(message, mapped.mediatedNetworkErrorMessage, "The reason stays visible through the message")
     }
 
     @Test

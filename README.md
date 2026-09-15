@@ -110,7 +110,7 @@ If the SDK is already initialized (e.g. you initialize it directly in your app),
 
 | Adapter version | Velocity SDK version | Notes |
 |---|---|---|
-| 0.10.1.0 | 0.10.1 | Unreachable ad media reported as `NO_FILL` |
+| 0.10.1.0 | 0.10.1 | Wraps Velocity Ads SDK 0.10.1 |
 | 0.10.0.0 | 0.10.0 | Initial release |
 
 ---
