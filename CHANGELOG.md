@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.1.0] - 2026-09-16
+
+### Changed
+
+* Wraps Velocity Ads Android SDK 0.10.1.
+
 ## [0.10.0.0] - 2026-09-07
 
 ### Added
