@@ -20,7 +20,7 @@ This library is the official AppLovin MAX **custom-network adapter** for the Vel
 |---|---|
 | Android | API 24 (Android 7.0) |
 | AppLovin MAX SDK | 13.x |
-| Velocity Ads SDK | 0.11.0 |
+| Velocity Ads SDK | 0.12.0 |
 | Kotlin | 2.0+ |
 
 ---
@@ -36,10 +36,10 @@ dependencies {
     implementation 'com.applovin:applovin-sdk:13.0.1'
 
     // Velocity Ads SDK
-    implementation 'io.velocity:ads-sdk:0.11.0'
+    implementation 'io.velocity:ads-sdk:0.12.0'
 
     // Velocity Ads MAX Adapter
-    implementation 'io.velocity:max-mediation:0.11.0.0'
+    implementation 'io.velocity:max-mediation:0.12.0.0'
 }
 ```
 
@@ -103,16 +103,6 @@ The adapter initializes the Velocity SDK automatically the first time MAX calls 
 Use **one Velocity app key per application process**. The Velocity SDK initializes once for the process; configuring different App ID values across MAX placements in the same app is unsupported.
 
 If the SDK is already initialized (e.g. you initialize it directly in your app), the adapter detects this and reports `INITIALIZED_SUCCESS` immediately.
-
----
-
-## Version history
-
-| Adapter version | Velocity SDK version | Notes |
-|---|---|---|
-| 0.11.0.0 | 0.11.0 | Wraps Velocity Ads SDK 0.11.0 |
-| 0.10.1.0 | 0.10.1 | Wraps Velocity Ads SDK 0.10.1 |
-| 0.10.0.0 | 0.10.0 | Initial release |
 
 ---
 
